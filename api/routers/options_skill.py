@@ -200,7 +200,7 @@ async def post_options_skill(
         return
 
     values = options_skill.dict()
-    table = options_skill
+    table = OptionsSkill
     sql = insert(table).values(values)
     sql = sql.prefix_with("ignore")
 

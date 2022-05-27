@@ -143,7 +143,7 @@ async def post_options_misc(login: str, token: str, options_misc: options_misc) 
         return
 
     values = options_misc.dict()
-    table = options_misc
+    table = OptionsMisc
     sql = insert(table).values(values)
     sql = sql.prefix_with("ignore")
 
