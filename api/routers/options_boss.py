@@ -325,7 +325,7 @@ async def post_options_boss(login: str, token: str, options_boss: options_boss) 
         return
 
     values = options_boss.dict()
-    table = options_boss
+    table = OptionsBoss
     sql = insert(table).values(values)
     sql = sql.prefix_with("ignore")
 

@@ -200,7 +200,7 @@ async def post_options_minigame(
         return
 
     values = options_minigame.dict()
-    table = options_minigame
+    table = OptionsMinigame
     sql = insert(table).values(values)
     sql = sql.prefix_with("ignore")
 
