@@ -1,17 +1,14 @@
 import api.middleware
 from api.config import app
-from api.database.models import UserInformation
 from api.routers import (
     request_history,
     user_rating_history,
-    user_stats,
     user_token,
     users,
 )
 
 app.include_router(request_history.router)
 app.include_router(user_rating_history.router)
-app.include_router(user_stats.router)
 app.include_router(user_token.router)
 app.include_router(users.router)
 
