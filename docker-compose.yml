@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: NeverScapeAlone-api:latest
+    image: neverscapealone-api:latest
     ports:
       - "5000:5000"
     env_file:
