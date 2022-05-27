@@ -19,7 +19,6 @@ app = FastAPI()
 
 
 origins = [
-    "http://touchgrass.online/",
     "https://touchgrass.online/",
     "http://localhost",
     "http://localhost:5000",
