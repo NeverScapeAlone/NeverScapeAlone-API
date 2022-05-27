@@ -18,16 +18,8 @@ token = os.environ.get("token")
 app = FastAPI()
 
 
-origins = [
-    "https://touchgrass.online/",
-    "http://localhost",
-    "http://localhost:5000",
-]
-
-
 app.add_middleware(
     CORSMiddleware,
-    origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
