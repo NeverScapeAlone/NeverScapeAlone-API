@@ -17,10 +17,15 @@ from api.database.functions import (
 from fastapi import APIRouter, HTTPException, Query, status, Request
 from pydantic import BaseModel
 from pydantic.fields import Field
-import time
+import platform
+import subprocess
 
 router = APIRouter()
 
+async def ping(host):
+    param = '-n' if platform.system().lower()=='windows' else '-c'
+    command = ['ping', param, '1', host]
+    return subprocess.call(command)
 
 @router.get("/V1/server-status/", tags=["status"])
 async def get_server_health(login: str, token: str, request: Request) -> json:
@@ -30,7 +35,7 @@ async def get_server_health(login: str, token: str, request: Request) -> json:
 
     response = {
         "status": "alive",
-        "response_time": os.system("ping -c 1 " + request.client.host)
+        "response_time": await ping(request.client.host)
     }
 
     return response
