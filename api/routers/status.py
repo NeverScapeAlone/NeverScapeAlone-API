@@ -20,6 +20,7 @@ from pydantic.fields import Field
 
 router = APIRouter()
 
+
 @router.get("/V1/server-status/", tags=["status"])
 async def get_server_health(login: str, token: str, request: Request) -> json:
 

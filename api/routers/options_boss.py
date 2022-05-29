@@ -183,9 +183,8 @@ async def get_options_boss(
         sql = sql.where(table.chambers_of_xeric == chambers_of_xeric)
 
     if chambers_of_xeric_challenge_mode is not None:
-        sql = sql.where(
-            table.chambers_of_xeric_challenge_mode == chambers_of_xeric_challenge_mode
-        )
+        sql = sql.where(table.chambers_of_xeric_challenge_mode ==
+                        chambers_of_xeric_challenge_mode)
 
     if chaos_elemental is not None:
         sql = sql.where(table.chaos_elemental == chaos_elemental)
@@ -278,10 +277,12 @@ async def get_options_boss(
         sql = sql.where(table.theatre_of_blood == theatre_of_blood)
 
     if theatre_of_blood_hard_mode is not None:
-        sql = sql.where(table.theatre_of_blood_hard_mode == theatre_of_blood_hard_mode)
+        sql = sql.where(table.theatre_of_blood_hard_mode ==
+                        theatre_of_blood_hard_mode)
 
     if thermonuclear_smoke_devil is not None:
-        sql = sql.where(table.thermonuclear_smoke_devil == thermonuclear_smoke_devil)
+        sql = sql.where(table.thermonuclear_smoke_devil ==
+                        thermonuclear_smoke_devil)
 
     if tzkal_zuk is not None:
         sql = sql.where(table.tzkal_zuk == tzkal_zuk)
