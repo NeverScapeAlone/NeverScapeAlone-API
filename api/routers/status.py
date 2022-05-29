@@ -22,10 +22,12 @@ import subprocess
 
 router = APIRouter()
 
+
 async def ping(host):
-    param = '-n' if platform.system().lower()=='windows' else '-c'
+    param = '-n' if platform.system().lower() == 'windows' else '-c'
     command = ['ping', param, '1', host]
     return subprocess.call(command)
+
 
 @router.get("/V1/server-status/", tags=["status"])
 async def get_server_health(login: str, token: str, request: Request) -> json:
