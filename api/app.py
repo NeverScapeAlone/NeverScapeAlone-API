@@ -10,6 +10,7 @@ from api.routers import (
     options_misc,
     options_skill,
     users,
+    status
 )
 
 app.include_router(request_history.router)
@@ -21,6 +22,7 @@ app.include_router(options_boss.router)
 app.include_router(options_minigame.router)
 app.include_router(options_misc.router)
 app.include_router(options_skill.router)
+app.include_router(status.router)
 
 
 @app.get("/")
