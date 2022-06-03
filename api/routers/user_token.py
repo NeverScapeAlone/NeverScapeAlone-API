@@ -161,8 +161,8 @@ async def register_user_token(
 
     if len(data) == 0:
         raise HTTPException(
-            500,
-            detail="There was a server-side error in auth route /user-token/register.",
+            202,
+            detail="registration failure",
         )
 
     user_id = data[0]["user_id"]
@@ -177,4 +177,4 @@ async def register_user_token(
         async with session.begin():
             data = await session.execute(sql)
 
-    return {"status": "registered"}
+    return {"detail": "registered"}

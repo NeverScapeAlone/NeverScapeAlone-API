@@ -43,4 +43,4 @@ async def get_server_health(
     if not await verify_token(login=login, token=token, access_level=0):
         return
 
-    return {"status": ONLINE}
+    return {"detail": ONLINE}

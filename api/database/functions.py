@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 async def is_valid_rsn(login: str) -> bool:
     if not re.fullmatch("[\w\d\s_-]{1,12}", login):
         raise HTTPException(
-            status_code=400,
-            detail=f"Bad RSN | {login}",
+            status_code=202,
+            detail=f"bad rsn",
         )
     return True
 
@@ -33,8 +33,8 @@ async def is_valid_rsn(login: str) -> bool:
 async def verify_user_agent(user_agent):
     if not re.fullmatch("^RuneLite", user_agent[:8]):
         raise HTTPException(
-            status_code=400,
-            detail=f"Bad header | {user_agent}",
+            status_code=202,
+            detail=f"bad header",
         )
     return True
 
@@ -42,8 +42,8 @@ async def verify_user_agent(user_agent):
 async def verify_token_construction(token: str) -> bool:
     if not re.fullmatch("[\w\d\s_-]{32}", token):
         raise HTTPException(
-            status_code=400,
-            detail=f"Bad token.",
+            status_code=202,
+            detail=f"bad token",
         )
     return True
 
@@ -72,10 +72,7 @@ async def verify_token(login: str, token: str, access_level=0) -> bool:
             data = data.rows2dict()
 
     if len(data) == 0:
-        raise HTTPException(
-            status_code=401,
-            detail=f"Insufficent permissions. You cannot access this content.",
-        )
+        raise HTTPException(status_code=202, detail="registering")
 
     auth_level = data[0]["auth_level"]
     if access_level > auth_level:
