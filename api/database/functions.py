@@ -21,6 +21,33 @@ from sqlalchemy.sql.expression import insert, select
 logger = logging.getLogger(__name__)
 
 
+async def is_valid_rsn(login: str) -> bool:
+    if not re.fullmatch("[\w\d\s_-]{1,12}", login):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Bad RSN | {login}",
+        )
+    return True
+
+
+async def verify_user_agent(user_agent):
+    if not re.fullmatch("^RuneLite", user_agent[:8]):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Bad header | {user_agent}",
+        )
+    return True
+
+
+async def verify_token_construction(token: str) -> bool:
+    if not re.fullmatch("[\w\d\s_-]{32}", token):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Bad token.",
+        )
+    return True
+
+
 async def verify_token(login: str, token: str, access_level=0) -> bool:
     """User verification request - this display's the user's access level and if they have permissions to access the content that they wish to view.
 
@@ -176,7 +203,7 @@ async def batch_function(function, data, batch_size=100):
     batches = []
     for i in range(0, len(data), batch_size):
         logger.debug({"batch": {f"{function.__name__}": f"{i}/{len(data)}"}})
-        batch = data[i: i + batch_size]
+        batch = data[i : i + batch_size]
         batches.append(batch)
 
     await asyncio.gather(*[create_task(function(batch)) for batch in batches])
