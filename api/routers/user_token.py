@@ -49,7 +49,6 @@ class register_account(BaseModel):
     token: str
 
 
-@router.get("/V1/user-token/", tags=["user", "token"])
 async def get_user_token(
     login: str,
     ID: Optional[int] = None,
@@ -101,7 +100,6 @@ async def get_user_token(
     return data.rows2dict()
 
 
-@router.post("/V1/user-token", tags=["user", "token"])
 async def post_user_token(login: str, token: str, user_token: user_token) -> json:
     """
     Args:\n
@@ -127,16 +125,15 @@ async def post_user_token(login: str, token: str, user_token: user_token) -> jso
     return {"ok": "ok"}
 
 
-@router.post("/V1/user-token/register", tags=["user", "token"])
+@router.post("/V1/user-token/register", tags=["user"])
 async def register_user_token(
     register_account: register_account, user_agent: str | None = Header(default=None)
 ) -> json:
 
     if not await is_valid_rsn(login=register_account.login):
         return
-
-    # if not await verify_user_agent(user_agent=user_agent):
-    #     return
+    if not await verify_user_agent(user_agent=user_agent):
+        return
 
     login = register_account.login
     token = register_account.token

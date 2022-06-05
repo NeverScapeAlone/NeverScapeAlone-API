@@ -34,13 +34,9 @@ async def get_server_health(
     login: str, token: str, user_agent: str | None = Header(default=None)
 ) -> json:
 
-    if not await is_valid_rsn(login=login):
-        return
-    if not await verify_token_construction(token=token):
-        return
     if not await verify_user_agent(user_agent=user_agent):
         return
-    if not await verify_token(login=login, token=token, access_level=0):
-        return
+
+    user_id = await verify_token(login=login, token=token, access_level=0)
 
     return {"detail": ONLINE}

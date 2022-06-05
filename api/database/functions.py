@@ -10,6 +10,8 @@ from collections import namedtuple
 from datetime import datetime, timedelta
 from typing import List
 
+from numpy import integer
+
 from api.database.database import USERDATA_ENGINE, Engine, EngineType
 from api.database.models import Users, UserToken
 from fastapi import HTTPException
@@ -21,20 +23,20 @@ from sqlalchemy.sql.expression import insert, select
 logger = logging.getLogger(__name__)
 
 
-async def is_valid_rsn(login: str) -> bool:
-    if not re.fullmatch("[\w\d\s_-]{1,12}", login):
-        raise HTTPException(
-            status_code=202,
-            detail=f"bad rsn",
-        )
-    return True
-
-
 async def verify_user_agent(user_agent):
     if not re.fullmatch("^RuneLite", user_agent[:8]):
         raise HTTPException(
             status_code=202,
             detail=f"bad header",
+        )
+    return True
+
+
+async def is_valid_rsn(login: str) -> bool:
+    if not re.fullmatch("[\w\d\s_-]{1,12}", login):
+        raise HTTPException(
+            status_code=202,
+            detail=f"bad rsn",
         )
     return True
 
@@ -48,7 +50,7 @@ async def verify_token_construction(token: str) -> bool:
     return True
 
 
-async def verify_token(login: str, token: str, access_level=0) -> bool:
+async def verify_token(login: str, token: str, access_level=0) -> integer:
     """User verification request - this display's the user's access level and if they have permissions to access the content that they wish to view.
 
     Args:
@@ -58,6 +60,11 @@ async def verify_token(login: str, token: str, access_level=0) -> bool:
     Returns:
         bool: True|False depending upon if the request was successful, or not.
     """
+    if not await verify_token_construction(token=token):
+        return
+
+    if not await is_valid_rsn(login=login):
+        return
 
     sql = select(UserToken)
     sql = sql.where(UserToken.token == token)
@@ -80,7 +87,9 @@ async def verify_token(login: str, token: str, access_level=0) -> bool:
             status_code=401,
             detail=f"Insufficent permissions. You cannot access this content at your auth level.",
         )
-    return True
+
+    user_id = data[0]["user_id"]
+    return user_id
 
 
 async def parse_sql(
@@ -205,12 +214,3 @@ async def batch_function(function, data, batch_size=100):
 
     await asyncio.gather(*[create_task(function(batch)) for batch in batches])
     return
-
-
-async def image_token_generator(length=10):
-    return "".join(
-        random.SystemRandom().choice(
-            string.ascii_uppercase + string.ascii_lowercase + string.digits
-        )
-        for _ in range(length)
-    )

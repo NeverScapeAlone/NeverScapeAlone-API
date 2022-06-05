@@ -41,7 +41,7 @@ class user_points(BaseModel):
     points: int
 
 
-@router.get("/V1/user-points/", tags=["user", "points"])
+@router.get("/V1/user-points/", tags=["user"])
 async def get_user_points(
     login: str,
     token: Optional[int] = None,
@@ -92,7 +92,7 @@ async def get_user_points(
     return data.rows2dict()
 
 
-@router.post("/V1/user-points", tags=["user", "points"])
+@router.post("/V1/user-points", tags=["user"])
 async def post_user_token(login: str, token: str, user_points: user_points) -> json:
     """
     Args:\n

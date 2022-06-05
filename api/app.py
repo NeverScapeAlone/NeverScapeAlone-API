@@ -2,15 +2,12 @@ import api.middleware
 from api.config import app
 from api.routers import (
     request_history,
+    user_options,
     user_rating_history,
     user_token,
     user_points,
-    options_boss,
-    options_minigame,
-    options_misc,
-    options_skill,
     users,
-    status
+    status,
 )
 
 app.include_router(request_history.router)
@@ -18,10 +15,7 @@ app.include_router(user_rating_history.router)
 app.include_router(user_token.router)
 app.include_router(user_points.router)
 app.include_router(users.router)
-app.include_router(options_boss.router)
-app.include_router(options_minigame.router)
-app.include_router(options_misc.router)
-app.include_router(options_skill.router)
+app.include_router(user_options.router)
 app.include_router(status.router)
 
 
