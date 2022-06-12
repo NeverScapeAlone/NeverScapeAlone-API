@@ -2,25 +2,35 @@ import asyncio
 import logging
 import random
 import re
-import string
-import sys
 import traceback
 from asyncio.tasks import create_task
 from collections import namedtuple
-from datetime import datetime, timedelta
 from typing import List
 
 from numpy import integer
+import time
 
 from api.database.database import USERDATA_ENGINE, Engine, EngineType
-from api.database.models import Users, UserToken
+from api.database.models import Users, UserToken, UserQueue
 from fastapi import HTTPException
 from sqlalchemy import Text, text
 from sqlalchemy.exc import InternalError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncResult, AsyncSession
-from sqlalchemy.sql.expression import insert, select
+from sqlalchemy.sql.expression import insert, select, delete
 
 logger = logging.getLogger(__name__)
+
+
+async def automatic_user_queue_cleanup():
+    table = UserQueue
+    sql = delete(table).where(table.in_queue == 0).prefix_with("ignore")
+
+    logger.info(f"Cleaning Queue at {time.time()}")
+
+    async with USERDATA_ENGINE.get_session() as session:
+        session: AsyncSession = session
+        async with session.begin():
+            await session.execute(sql)
 
 
 async def verify_user_agent(user_agent):

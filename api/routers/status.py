@@ -12,16 +12,13 @@ from pyparsing import Opt
 from requests import request
 
 from api.database.functions import (
-    is_valid_rsn,
     verify_user_agent,
-    verify_token_construction,
     verify_token,
 )
-from fastapi import APIRouter, HTTPException, Query, status, Request, Header
+from fastapi import APIRouter, Header
 
 from pydantic import BaseModel
 from pydantic.fields import Field
-import re
 
 router = APIRouter()
 
