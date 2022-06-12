@@ -43,7 +43,7 @@ async def verify_user_agent(user_agent):
 
 
 async def is_valid_rsn(login: str) -> bool:
-    if not re.fullmatch("[\w\d\s_-]{1,12}", login):
+    if not re.fullmatch(r"[\w\d\s_-]{1,12}", login):
         raise HTTPException(
             status_code=202,
             detail=f"bad rsn",
@@ -52,7 +52,7 @@ async def is_valid_rsn(login: str) -> bool:
 
 
 async def verify_token_construction(token: str) -> bool:
-    if not re.fullmatch("[\w\d\s_-]{32}", token):
+    if not re.fullmatch(r"[\w\d\s_-]{32}", token):
         raise HTTPException(
             status_code=202,
             detail=f"bad token",
@@ -219,7 +219,7 @@ async def batch_function(function, data, batch_size=100):
     batches = []
     for i in range(0, len(data), batch_size):
         logger.debug({"batch": {f"{function.__name__}": f"{i}/{len(data)}"}})
-        batch = data[i : i + batch_size]
+        batch = data[i: i + batch_size]
         batches.append(batch)
 
     await asyncio.gather(*[create_task(function(batch)) for batch in batches])

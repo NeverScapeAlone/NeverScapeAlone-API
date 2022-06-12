@@ -83,8 +83,11 @@ class ActiveMatches(Base):
     __tablename__ = "active_matches"
     ID = Column(Integer, primary_key=True)
     user_id = Column(
-        Integer, ForeignKey("users.user_id", ondelete="RESTRICT", onupdate="RESTRICT")
-    )
+        Integer,
+        ForeignKey(
+            "users.user_id",
+            ondelete="RESTRICT",
+            onupdate="RESTRICT"))
     party_identifier = Column(TINYTEXT)
     user_queue_ID = Column(Integer)
     activity = Column(TEXT)
@@ -96,8 +99,11 @@ class UserQueue(Base):
     __tablename__ = "user_queue"
     ID = Column(Integer, primary_key=True)
     user_id = Column(
-        Integer, ForeignKey("users.user_id", ondelete="RESTRICT", onupdate="RESTRICT")
-    )
+        Integer,
+        ForeignKey(
+            "users.user_id",
+            ondelete="RESTRICT",
+            onupdate="RESTRICT"))
     timestamp = Column(TIMESTAMP)
     in_queue = Column(Boolean, unique=False, default=False)
     activity = Column(TINYTEXT)

@@ -113,10 +113,12 @@ async def build_matchmaking_parties():
     df["party_number"] = df.groupby(by=check_columns).grouper.group_info[0] + 1
     # Counts individual members of a party from party numbers
     df["count"] = df.groupby(["party_number"])["activity"].transform("count")
-    # Filters out sections where the count is lower than the party number requested by users
+    # Filters out sections where the count is lower than the party number
+    # requested by users
     df = df[df["party_member_count"] <= df["count"]]
 
-    # Obtains the unique party numbers from the tally, this allows the groups to be managed
+    # Obtains the unique party numbers from the tally, this allows the groups
+    # to be managed
     unique_party_numbers = df.party_number.unique()
 
     # Creates a group header for labeling the output data
@@ -134,12 +136,14 @@ async def build_matchmaking_parties():
         # obtains the activity name from the sub dataframe
         activity_name = df_sub["activity"].values[0]
 
-        # obtains an array from the sub dataframe which contains the skill level values for self and partner
+        # obtains an array from the sub dataframe which contains the skill
+        # level values for self and partner
         arr = np.array(df_sub[inverse_columns].values)
         X_self, Y_partner = np.split(arr, 2, axis=1)
         X, Y = X_self.flatten(), Y_partner.flatten()
 
-        # Gets the paired values and sorts them according to lower -> upper values in pairs. This makes future sorting easier.
+        # Gets the paired values and sorts them according to lower -> upper
+        # values in pairs. This makes future sorting easier.
         pair_values = []
         for cx, x in enumerate(X):
             for cy, y in enumerate(Y):
@@ -151,10 +155,12 @@ async def build_matchmaking_parties():
 
         pair_values = np.array(pair_values)
         u, c = np.unique(pair_values, axis=0, return_counts=True)
-        # Gets pairs where there is a mutual acceptance for the other skill level. Ex. Both users want to play with eachother.
+        # Gets pairs where there is a mutual acceptance for the other skill
+        # level. Ex. Both users want to play with eachother.
         paired = u[np.where(c >= 2)]
 
-        # continues if length of the paired array is zero, meaning that there's no mutual want for the other skill level.
+        # continues if length of the paired array is zero, meaning that there's
+        # no mutual want for the other skill level.
         if len(paired) == 0:
             continue
 
@@ -170,7 +176,8 @@ async def build_matchmaking_parties():
             user_position_in_party = []
 
             if len(group) < party_member_count:
-                # if the amount of members in the group is lower than the requested count, remove
+                # if the amount of members in the group is lower than the
+                # requested count, remove
                 continue
             for user_number, user in enumerate(group):
                 # collect users that will be in the group
@@ -190,7 +197,9 @@ async def build_matchmaking_parties():
             for user_position in created_parties[prty_number]:
                 user_id = df_sub.user_id.values[user_position]
 
-                mask = (df_sub.user_id == user_id) & (df_sub.activity == activity_name)
+                mask = (
+                    df_sub.user_id == user_id) & (
+                    df_sub.activity == activity_name)
                 user_queue_ID = df_sub[mask].ID.values[0]
 
                 user_ids.append(user_id)
