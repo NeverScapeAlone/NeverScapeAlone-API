@@ -7,25 +7,42 @@ from asyncio.tasks import create_task
 from collections import namedtuple
 from typing import List
 
-from numpy import integer
 import time
+from datetime import datetime, timedelta
 
 from api.database.database import USERDATA_ENGINE, Engine, EngineType
-from api.database.models import Users, UserToken, UserQueue
+from api.database.models import ActiveMatches, Users, UserToken, UserQueue
 from fastapi import HTTPException
 from sqlalchemy import Text, text
 from sqlalchemy.exc import InternalError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncResult, AsyncSession
-from sqlalchemy.sql.expression import insert, select, delete
+from sqlalchemy.sql.expression import insert, select, delete, update
 
 logger = logging.getLogger(__name__)
 
 
 async def automatic_user_queue_cleanup():
     table = UserQueue
+    # or (table.timestamp <= datetime.utcnow() - timedelta(minutes=60))
     sql = delete(table).where(table.in_queue == 0).prefix_with("ignore")
 
-    logger.info(f"Cleaning Queue at {time.time()}")
+    logger.info(f"Removing Old Queues and Cleaning")
+
+    async with USERDATA_ENGINE.get_session() as session:
+        session: AsyncSession = session
+        async with session.begin():
+            await session.execute(sql)
+
+
+async def automatic_user_active_matches_cleanup():
+    table = ActiveMatches
+    sql = (
+        delete(table)
+        .where(table.timestamp <= datetime.utcnow() - timedelta(minutes=60))
+        .prefix_with("ignore")
+    )
+
+    logger.info(f"Cleaning Active Matches")
 
     async with USERDATA_ENGINE.get_session() as session:
         session: AsyncSession = session
@@ -60,7 +77,7 @@ async def verify_token_construction(token: str) -> bool:
     return True
 
 
-async def verify_token(login: str, token: str, access_level=0) -> integer:
+async def verify_token(login: str, token: str, access_level=0) -> int:
     """User verification request - this display's the user's access level and if they have permissions to access the content that they wish to view.
 
     Args:

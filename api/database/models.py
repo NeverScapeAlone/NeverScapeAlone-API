@@ -64,21 +64,6 @@ class UserPoints(Base):
     points = Column(BigInteger)
 
 
-class RequestHistory(Base):
-    __tablename__ = "request_history"
-    ID = Column(BigInteger, primary_key=True)
-
-    s_user_id = Column(
-        ForeignKey("users.user_id", ondelete="RESTRICT", onupdate="RESTRICT")
-    )
-    r_user_id = Column(
-        ForeignKey("users.user_id", ondelete="RESTRICT", onupdate="RESTRICT")
-    )
-    timestamp_START = Column(TIMESTAMP)
-    timestamp_DEAD = Column(TIMESTAMP)
-    status = Column(TINYINT)
-
-
 class ActiveMatches(Base):
     __tablename__ = "active_matches"
     ID = Column(Integer, primary_key=True)
@@ -88,6 +73,7 @@ class ActiveMatches(Base):
     party_identifier = Column(TINYTEXT)
     user_queue_ID = Column(Integer)
     activity = Column(TEXT)
+    party_member_count = Column(Integer)
     has_accepted = Column(Boolean, default=False)
     timestamp = Column(TIMESTAMP)
 

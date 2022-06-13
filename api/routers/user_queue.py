@@ -22,18 +22,18 @@ from api.database.functions import (
     verify_token,
     verify_user_agent,
 )
-from api.database.models import UserQueue
+from api.database.models import ActiveMatches, UserQueue
 from fastapi import APIRouter, Header, HTTPException, Query, status
 from h11 import InformationalResponse
 from pydantic import BaseModel
 from pydantic.fields import Field
 from pyparsing import Opt
-from requests import delete, options, request
+from requests import options, request
 from sqlalchemy import TEXT, TIMESTAMP, select, values
 from sqlalchemy.dialects.mysql import Insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
-from sqlalchemy.sql.expression import Select, insert, select, update
+from sqlalchemy.sql.expression import Select, insert, select, update, delete
 
 router = APIRouter()
 
@@ -82,44 +82,6 @@ class input_values(BaseModel):
     oceania: bool
     f2p: bool
     p2p: bool
-
-
-@router.get("/V1/queue/pool", tags=["matchmaking"])
-async def get_queue_pool(
-    # User Items
-    login: str = Query(..., min_length=1, max_length=12),
-    token: str = Query(..., min_length=32, max_length=32),
-    user_agent: str | None = Header(default=None),
-    # Table items
-    ID: Optional[int] = None,
-    user_id: Optional[int] = None,
-    timestamp: Optional[datetime] = None,
-    in_queue: Optional[bool] = Query(False),
-    activity: Optional[str] = None,
-    party_member_count: Optional[int] = None,
-    self_experience_level: Optional[int] = None,
-    partner_experience_level: Optional[int] = None,
-    us_east: Optional[bool] = Query(False),
-    us_west: Optional[bool] = Query(False),
-    eu_central: Optional[bool] = Query(False),
-    eu_west: Optional[bool] = Query(False),
-    oceania: Optional[bool] = Query(False),
-    f2p: Optional[bool] = Query(False),
-    p2p: Optional[bool] = Query(False),
-    # row get items
-    row_count: Optional[int] = Query(100, ge=1, le=1000),
-    page: Optional[int] = Query(1, ge=1),
-):
-
-    sql = sql.limit(row_count).offset(row_count * (page - 1))
-
-    async with USERDATA_ENGINE.get_session() as session:
-        session: AsyncSession = session
-        async with session.begin():
-            data = await session.execute(sql)
-
-    data = sqlalchemy_result(data)
-    return data.rows2dict()
 
 
 @router.post("/V1/queue/start", tags=["matchmaking"])
@@ -175,13 +137,22 @@ async def get_user_queue_cancel(
     if not await verify_user_agent(user_agent=user_agent):
         return
     user_id = await verify_token(login=login, token=token, access_level=0)
-    table = UserQueue
+    UserQueue_table = UserQueue
+    ActiveMatches_table = ActiveMatches
 
-    sql = update(table).where(table.user_id == user_id).values(in_queue=False)
+    UserQueue_sql = (
+        update(UserQueue_table)
+        .where(UserQueue_table.user_id == user_id)
+        .values(in_queue=False)
+    )
+    ActiveMatches_sql = delete(ActiveMatches_table).where(
+        ActiveMatches_table.user_id == user_id
+    )
 
     async with USERDATA_ENGINE.get_session() as session:
         session: AsyncSession = session
         async with session.begin():
-            await session.execute(sql)
+            await session.execute(UserQueue_sql)
+            await session.execute(ActiveMatches_sql)
 
     return {"detail": "queue canceled"}

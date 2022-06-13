@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 from ast import Delete
 from cgitb import text
@@ -21,6 +22,7 @@ from api.database.functions import (
     verify_token,
     verify_user_agent,
 )
+from api.routers import user_queue
 from api.database.models import ActiveMatches, UserQueue
 from certifi import where
 from fastapi import APIRouter, Header, HTTPException, Query, Request, status
@@ -38,6 +40,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.expression import Select, insert, select, update
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 
@@ -46,6 +50,7 @@ class user_active_match(BaseModel):
     user_queue_ID: int
     party_identifier: str
     activity: str
+    party_member_count: int
 
 
 @router.get("/V1/matchmaking/check-status", tags=["matchmaking"])
@@ -56,7 +61,20 @@ async def get_matchmaking_status(
     if not await verify_user_agent(user_agent=user_agent):
         return
     user_id = await verify_token(login=login, token=token, access_level=0)
-    return
+
+    table = ActiveMatches
+    sql = select(table).where(table.user_id == user_id)
+
+    async with USERDATA_ENGINE.get_session() as session:
+        session: AsyncSession = session
+        async with session.begin():
+            data = await session.execute(sql)
+
+    data = sqlalchemy_result(data).rows2dict()
+
+    if len(data) == 0:
+        return {"detail": "no active matches"}
+    return data
 
 
 @router.get("/V1/matchmaking/accept", tags=["matchmaking"])
@@ -67,18 +85,18 @@ async def get_accept_matchmaking_request(
     if not await verify_user_agent(user_agent=user_agent):
         return
     user_id = await verify_token(login=login, token=token, access_level=0)
-    return
+    return {"detail": "match accepted"}
 
 
 @router.get("/V1/matchmaking/deny", tags=["matchmaking"])
-async def get_accept_matchmaking_request(
+async def get_deny_matchmaking_request(
     login: str, token: str, user_agent: str | None = Header(default=None)
 ) -> json:
-
-    if not await verify_user_agent(user_agent=user_agent):
-        return
-    user_id = await verify_token(login=login, token=token, access_level=0)
-    return
+    """passes request to user_queue get user queue cancel, which will remove active match and queue. Causing reset. Can be reconfigured later if needed."""
+    await user_queue.get_user_queue_cancel(
+        login=login, token=token, user_agent=user_agent
+    )
+    return {"detail": "queue canceled"}
 
 
 async def build_matchmaking_parties():
@@ -198,6 +216,8 @@ async def build_matchmaking_parties():
             parties_with_userid[
                 f"{activity_name}"
                 + "$"
+                + str(party_member_count)
+                + "@"
                 + group_header
                 + "_"
                 + str(pn_c)
@@ -213,6 +233,7 @@ async def build_matchmaking_parties():
                 user_queue_ID=party_user_queue_ID,
                 party_identifier=party,
                 activity=party[: party.find("$")],
+                party_member_count=int(party[party.find("$") + 1 : party.find("@")]),
             )
             values.append(value.dict())
 
@@ -220,7 +241,7 @@ async def build_matchmaking_parties():
     if len(values) == 0:
         return
 
-    print(values)
+    logger.info(f"Posting Active Matches")
 
     sql = insert(ActiveMatches_table).values(values).prefix_with("ignore")
 
