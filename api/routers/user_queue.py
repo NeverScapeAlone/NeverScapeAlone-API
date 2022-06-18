@@ -131,6 +131,7 @@ async def post_user_queue_start(
 async def get_user_queue_cancel(
     login: str = Query(..., min_length=1, max_length=12),
     token: str = Query(..., min_length=32, max_length=32),
+    route_type: Optional[str] = Query(None),
     user_agent: str | None = Header(default=None),
 ) -> json:
 
@@ -155,4 +156,6 @@ async def get_user_queue_cancel(
             await session.execute(UserQueue_sql)
             await session.execute(ActiveMatches_sql)
 
+    if route_type == "end session":
+        return {"detail": "match ended"}
     return {"detail": "queue canceled"}

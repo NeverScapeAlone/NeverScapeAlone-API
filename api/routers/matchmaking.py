@@ -23,7 +23,7 @@ from api.database.functions import (
     verify_user_agent,
 )
 from api.routers import user_queue
-from api.database.models import ActiveMatches, UserQueue
+from api.database.models import ActiveMatches, UserQueue, Users
 from certifi import where
 from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from fastapi_utils.tasks import repeat_every
@@ -34,7 +34,7 @@ from pydantic.fields import Field
 from pymysql import Timestamp
 from pyparsing import Opt
 from requests import delete, options, request, session
-from sqlalchemy import TEXT, TIMESTAMP, select, values
+from sqlalchemy import TEXT, TIMESTAMP, select, table, values
 from sqlalchemy.dialects.mysql import Insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -51,6 +51,15 @@ class user_active_match(BaseModel):
     party_identifier: str
     activity: str
     party_member_count: int
+
+
+class match_payload(BaseModel):
+    queue_remaining: int
+    queue_total: int
+    activity_name: str
+    world_number: int
+    region: str
+    world_type: str
 
 
 @router.get("/V1/matchmaking/check-status", tags=["matchmaking"])
@@ -70,11 +79,66 @@ async def get_matchmaking_status(
         async with session.begin():
             data = await session.execute(sql)
 
-    data = sqlalchemy_result(data).rows2dict()
+    if len(sqlalchemy_result(data).rows2dict()) == 0:
+        return {"detail": "no active matches"}
+    return {"detail": "pending matches"}
 
+
+@router.get("/V1/matchmaking/get-match-information", tags=["matchmaking"])
+async def get_matchmaking_status(
+    login: str, token: str, user_agent: str | None = Header(default=None)
+) -> json:
+
+    # if not await verify_user_agent(user_agent=user_agent):
+    #     return
+    user_id = await verify_token(login=login, token=token, access_level=0)
+
+    table_ActiveMatches1 = ActiveMatches
+    table_ActiveMatches2 = ActiveMatches
+    table_Users = Users
+    table_Queue = UserQueue
+    # sql = select(table_1).where(
+    #     # user id from auth token pull
+    #     table_1.user_id == user_id,
+    #     # get usernames
+    #     table_users.user_id == table_1.user_id,
+    #     table_users.user_id == table_2.user_id,
+    #     # make sure that they've accepted
+    #     table_1.has_accepted == True,
+    #     table_2.has_accepted == True,
+    #     # get party identifiers
+    #     table_2.party_identifier == table_1.party_identifier,
+    # )
+
+    # print(sql)
+
+    # async with USERDATA_ENGINE.get_session() as session:
+    #     session: AsyncSession = session
+    #     async with session.begin():
+    #         data = await session.execute(sql)
+
+    data = sqlalchemy_result(data).rows2dict()
     if len(data) == 0:
         return {"detail": "no active matches"}
-    return data
+
+    df = pd.DataFrame(data)
+
+    print(df)
+
+    df_temp = df["party_identifier"]
+    df_temp = (
+        pd.DataFrame(df_temp.value_counts())
+        .reset_index()
+        .rename(columns={"index": "party_name", "party_identifier": "true_count"})
+    )
+    df_temp["requested_count"] = df_temp["party_name"].apply(
+        lambda x: x[x.find("$") + 1 : x.find("@")]
+    )
+
+    df_evaluate = df_temp[df_temp["requested_count"] == df_temp["true_count"]]
+    print(df_evaluate)
+
+    return {"detail": data}
 
 
 @router.get("/V1/matchmaking/accept", tags=["matchmaking"])
@@ -85,6 +149,13 @@ async def get_accept_matchmaking_request(
     if not await verify_user_agent(user_agent=user_agent):
         return
     user_id = await verify_token(login=login, token=token, access_level=0)
+    table = ActiveMatches
+
+    sql = update(table).where(table.user_id == user_id).values(has_accepted=True)
+    async with USERDATA_ENGINE.get_session() as session:
+        session: AsyncSession = session
+        async with session.begin():
+            data = await session.execute(sql)
     return {"detail": "match accepted"}
 
 
@@ -97,6 +168,17 @@ async def get_deny_matchmaking_request(
         login=login, token=token, user_agent=user_agent
     )
     return {"detail": "queue canceled"}
+
+
+@router.get("/V1/matchmaking/end-session", tags=["matchmaking"])
+async def get_end_session_matchmaking_request(
+    login: str, token: str, user_agent: str | None = Header(default=None)
+) -> json:
+    """passes request to user_queue get user queue cancel, which will remove active match and queue. Causing reset. Can be reconfigured later if needed."""
+    await user_queue.get_user_queue_cancel(
+        login=login, token=token, route_type="end session", user_agent=user_agent
+    )
+    return {"detail": "match ended"}
 
 
 async def build_matchmaking_parties():
