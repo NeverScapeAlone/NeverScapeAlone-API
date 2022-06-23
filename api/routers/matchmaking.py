@@ -34,7 +34,7 @@ from pydantic.fields import Field
 from pymysql import Timestamp
 from pyparsing import Opt
 from requests import delete, options, request, session
-from sqlalchemy import TEXT, TIMESTAMP, select, table, values
+from sqlalchemy import TEXT, TIMESTAMP, select, table, tuple_, values
 from sqlalchemy.dialects.mysql import Insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -93,52 +93,52 @@ async def get_matchmaking_status(
     #     return
     user_id = await verify_token(login=login, token=token, access_level=0)
 
-    table_ActiveMatches1 = ActiveMatches
-    table_ActiveMatches2 = ActiveMatches
-    table_Users = Users
-    table_Queue = UserQueue
-    # sql = select(table_1).where(
-    #     # user id from auth token pull
-    #     table_1.user_id == user_id,
-    #     # get usernames
-    #     table_users.user_id == table_1.user_id,
-    #     table_users.user_id == table_2.user_id,
-    #     # make sure that they've accepted
-    #     table_1.has_accepted == True,
-    #     table_2.has_accepted == True,
-    #     # get party identifiers
-    #     table_2.party_identifier == table_1.party_identifier,
-    # )
+    table = ActiveMatches
+    sql_user_actives = select(table).where(table.user_id == user_id)
 
-    # print(sql)
-
-    # async with USERDATA_ENGINE.get_session() as session:
-    #     session: AsyncSession = session
-    #     async with session.begin():
-    #         data = await session.execute(sql)
+    async with USERDATA_ENGINE.get_session() as session:
+        session: AsyncSession = session
+        async with session.begin():
+            data = await session.execute(sql_user_actives)
 
     data = sqlalchemy_result(data).rows2dict()
     if len(data) == 0:
         return {"detail": "no active matches"}
 
     df = pd.DataFrame(data)
+    party_identifiers = df.party_identifier.unique()
 
-    print(df)
-
-    df_temp = df["party_identifier"]
-    df_temp = (
-        pd.DataFrame(df_temp.value_counts())
-        .reset_index()
-        .rename(columns={"index": "party_name", "party_identifier": "true_count"})
-    )
-    df_temp["requested_count"] = df_temp["party_name"].apply(
-        lambda x: x[x.find("$") + 1 : x.find("@")]
+    sql: Select = select(
+        columns=[
+            Users.login,
+            ActiveMatches.party_identifier,
+            ActiveMatches.has_accepted,
+            ActiveMatches.timestamp,
+        ]
     )
 
-    df_evaluate = df_temp[df_temp["requested_count"] == df_temp["true_count"]]
-    print(df_evaluate)
+    sql = sql.join(Users, ActiveMatches.user_id == Users.user_id)
+    sql = sql.where(ActiveMatches.party_identifier.in_(party_identifiers))
 
-    return {"detail": data}
+    async with USERDATA_ENGINE.get_session() as session:
+        session: AsyncSession = session
+        async with session.begin():
+            data = await session.execute(sql)
+
+    cleaned_data = []
+    for c, d in enumerate(data):
+        temp_dict = dict()
+        temp_dict["login"] = d[0]
+        temp_dict["party_identifier"] = d[1]
+        temp_dict["has_accepted"] = d[2]
+        temp_dict["timestamp"] = str(int(time.mktime(d[3].timetuple())))
+        cleaned_data.append(temp_dict)
+
+    data = cleaned_data
+    if len(data) <= 1:
+        return {"detail": "no active matches"}
+
+    return data
 
 
 @router.get("/V1/matchmaking/accept", tags=["matchmaking"])
