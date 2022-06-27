@@ -1,19 +1,16 @@
-from ast import Delete
 import json
+import queue
+import time
+from ast import Delete
 from cgitb import text
 from dataclasses import replace
 from datetime import datetime
 from optparse import Option
 from pickletools import optimize
 from pstats import Stats
-import queue
 from typing import Optional
-import time
 from urllib.request import Request
 from xmlrpc.client import Boolean, boolean
-from certifi import where
-
-from pymysql import Timestamp
 
 from api.database.functions import (
     USERDATA_ENGINE,
@@ -23,17 +20,19 @@ from api.database.functions import (
     verify_user_agent,
 )
 from api.database.models import ActiveMatches, UserQueue
+from certifi import where
 from fastapi import APIRouter, Header, HTTPException, Query, status
 from h11 import InformationalResponse
 from pydantic import BaseModel
 from pydantic.fields import Field
+from pymysql import Timestamp
 from pyparsing import Opt
 from requests import options, request
 from sqlalchemy import TEXT, TIMESTAMP, select, values
 from sqlalchemy.dialects.mysql import Insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
-from sqlalchemy.sql.expression import Select, insert, select, update, delete
+from sqlalchemy.sql.expression import Select, delete, insert, select, update
 
 router = APIRouter()
 
@@ -44,8 +43,7 @@ class sub_payload(BaseModel):
     party_member_count: int
     self_experience_level: int
     partner_experience_level: int
-    us_east: bool
-    us_west: bool
+    us: bool
     eu_central: bool
     eu_west: bool
     oceania: bool
@@ -75,8 +73,7 @@ class input_values(BaseModel):
     party_member_count: int
     self_experience_level: int
     partner_experience_level: int
-    us_east: bool
-    us_west: bool
+    us: bool
     eu_central: bool
     eu_west: bool
     oceania: bool
@@ -88,13 +85,16 @@ class input_values(BaseModel):
 async def post_user_queue_start(
     user_options: queue_post,
     login: str = Query(..., min_length=1, max_length=12),
+    discord: str = Query(..., min_length=1, max_length=64),
     token: str = Query(..., min_length=32, max_length=32),
     user_agent: str | None = Header(default=None),
 ) -> json:
 
     if not await verify_user_agent(user_agent=user_agent):
         return
-    user_id = await verify_token(login=login, token=token, access_level=0)
+    user_id = await verify_token(
+        login=login, discord=discord, token=token, access_level=0
+    )
 
     incoming_content = user_options.Payload
     values = []
@@ -106,8 +106,7 @@ async def post_user_queue_start(
             party_member_count=activities.configuration.party_member_count,
             self_experience_level=activities.configuration.self_experience_level,
             partner_experience_level=activities.configuration.partner_experience_level,
-            us_east=activities.configuration.us_east,
-            us_west=activities.configuration.us_west,
+            us=activities.configuration.us,
             eu_central=activities.configuration.eu_central,
             eu_west=activities.configuration.eu_west,
             oceania=activities.configuration.oceania,
@@ -130,6 +129,7 @@ async def post_user_queue_start(
 @router.get("/V1/queue/cancel", tags=["matchmaking"])
 async def get_user_queue_cancel(
     login: str = Query(..., min_length=1, max_length=12),
+    discord: str = Query(..., min_length=1, max_length=64),
     token: str = Query(..., min_length=32, max_length=32),
     route_type: Optional[str] = Query(None),
     user_agent: str | None = Header(default=None),
@@ -137,7 +137,9 @@ async def get_user_queue_cancel(
 
     if not await verify_user_agent(user_agent=user_agent):
         return
-    user_id = await verify_token(login=login, token=token, access_level=0)
+    user_id = await verify_token(
+        login=login, discord=discord, token=token, access_level=0
+    )
     UserQueue_table = UserQueue
     ActiveMatches_table = ActiveMatches
 

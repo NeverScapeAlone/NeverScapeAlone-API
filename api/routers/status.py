@@ -28,12 +28,12 @@ MAINTENANCE = "maintenance"
 
 @router.get("/V1/server-status/", tags=["status"])
 async def get_server_health(
-    login: str, token: str, user_agent: str | None = Header(default=None)
+    login: str, discord: str, token: str, user_agent: str | None = Header(default=None)
 ) -> json:
 
     if not await verify_user_agent(user_agent=user_agent):
         return
 
-    user_id = await verify_token(login=login, token=token, access_level=0)
+    await verify_token(login=login, discord=discord, token=token, access_level=0)
 
     return {"detail": ONLINE}

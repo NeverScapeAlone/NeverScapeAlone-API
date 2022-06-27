@@ -19,6 +19,7 @@ from api.database.functions import (
     USERDATA_ENGINE,
     EngineType,
     sqlalchemy_result,
+    validate_discord,
     verify_token,
 )
 from api.database.models import UserToken, Users
@@ -30,7 +31,7 @@ from sqlalchemy import BIGINT, DATETIME, TIMESTAMP, VARCHAR, BigInteger, func, s
 from sqlalchemy.dialects.mysql import Insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
-from sqlalchemy.sql.expression import Select, select, insert
+from sqlalchemy.sql.expression import Select, select, insert, update
 
 router = APIRouter()
 
@@ -47,10 +48,12 @@ class user_token(BaseModel):
 class register_account(BaseModel):
     login: str
     token: str
+    discord: str
 
 
 async def get_user_token(
     login: str,
+    discord: str,
     ID: Optional[int] = None,
     user_id: int = None,
     auth_level: Optional[int] = None,
@@ -71,7 +74,9 @@ async def get_user_token(
         json: requested output\n
     """
 
-    if not await verify_token(login=login, token=token, access_level=9):
+    if not await verify_token(
+        login=login, discord=discord, token=token, access_level=9
+    ):
         return
 
     table = UserToken
@@ -100,7 +105,9 @@ async def get_user_token(
     return data.rows2dict()
 
 
-async def post_user_token(login: str, token: str, user_token: user_token) -> json:
+async def post_user_token(
+    login: str, discord: str, token: str, user_token: user_token
+) -> json:
     """
     Args:\n
         user_token (user_token): user token model\n
@@ -109,7 +116,9 @@ async def post_user_token(login: str, token: str, user_token: user_token) -> jso
         json: {"ok": "ok"}\n
     """
 
-    if not await verify_token(login=login, token=token, access_level=9):
+    if not await verify_token(
+        login=login, discord=discord, token=token, access_level=9
+    ):
         return
 
     values = user_token.dict()
@@ -130,22 +139,28 @@ async def register_user_token(
     register_account: register_account, user_agent: str | None = Header(default=None)
 ) -> json:
 
-    if not await is_valid_rsn(login=register_account.login):
+    login = register_account.login
+    token = register_account.token
+    discord = register_account.discord
+
+    if not await is_valid_rsn(login=login):
         return
     if not await verify_user_agent(user_agent=user_agent):
         return
 
-    login = register_account.login
-    token = register_account.token
+    discord = await validate_discord(discord=discord)
 
     table = Users
-    sql = insert(table).values({"login": login})
+    sql = insert(table).values({"login": login, "discord": discord})
     sql = sql.prefix_with("ignore")
+
+    sql_update = update(table).where(table.login == login).values(discord=discord)
 
     async with USERDATA_ENGINE.get_session() as session:
         session: AsyncSession = session
         async with session.begin():
-            data_post = await session.execute(sql)
+            await session.execute(sql)
+            await session.execute(sql_update)
 
     sql: Select = select(table).where(table.login == login)
 

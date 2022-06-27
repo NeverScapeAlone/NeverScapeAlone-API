@@ -27,6 +27,7 @@ class Users(Base):
 
     user_id = Column(Integer, primary_key=True)
     login = Column(VARCHAR(64))
+    discord = Column(VARCHAR(64))
     timestamp = Column(TIMESTAMP)
 
 
@@ -90,10 +91,24 @@ class UserQueue(Base):
     party_member_count = Column(Integer)
     self_experience_level = Column(Integer)
     partner_experience_level = Column(Integer)
-    us_east = Column(Boolean, unique=False, default=False)
-    us_west = Column(Boolean, unique=False, default=False)
+    us = Column(Boolean, unique=False, default=False)
     eu_central = Column(Boolean, unique=False, default=False)
     eu_west = Column(Boolean, unique=False, default=False)
     oceania = Column(Boolean, unique=False, default=False)
     f2p = Column(Boolean, unique=False, default=False)
     p2p = Column(Boolean, unique=False, default=False)
+
+
+class WorldInformation(Base):
+    __tablename__ = "world_information"
+    ID = Column(Integer, primary_key=True)
+    timestamp = Column(TIMESTAMP)
+    world_number = Column(Integer)
+    activity = Column(TEXT)
+    us = Column(Boolean, unique=False, default=False)
+    eu_central = Column(Boolean, unique=False, default=False)
+    eu_west = Column(Boolean, unique=False, default=False)
+    oceania = Column(Boolean, unique=False, default=False)
+    f2p = Column(Boolean, unique=False, default=False)
+    p2p = Column(Boolean, unique=False, default=False)
+    player_count = Column(Integer)

@@ -23,7 +23,7 @@ from api.database.functions import (
     verify_user_agent,
 )
 from api.routers import user_queue
-from api.database.models import ActiveMatches, UserQueue, Users
+from api.database.models import ActiveMatches, UserQueue, Users, WorldInformation
 from certifi import where
 from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from fastapi_utils.tasks import repeat_every
@@ -53,23 +53,16 @@ class user_active_match(BaseModel):
     party_member_count: int
 
 
-class match_payload(BaseModel):
-    queue_remaining: int
-    queue_total: int
-    activity_name: str
-    world_number: int
-    region: str
-    world_type: str
-
-
 @router.get("/V1/matchmaking/check-status", tags=["matchmaking"])
 async def get_matchmaking_status(
-    login: str, token: str, user_agent: str | None = Header(default=None)
+    login: str, discord: str, token: str, user_agent: str | None = Header(default=None)
 ) -> json:
 
     if not await verify_user_agent(user_agent=user_agent):
         return
-    user_id = await verify_token(login=login, token=token, access_level=0)
+    user_id = await verify_token(
+        login=login, discord=discord, token=token, access_level=0
+    )
 
     table = ActiveMatches
     sql = select(table).where(table.user_id == user_id)
@@ -86,12 +79,14 @@ async def get_matchmaking_status(
 
 @router.get("/V1/matchmaking/get-match-information", tags=["matchmaking"])
 async def get_matchmaking_status(
-    login: str, token: str, user_agent: str | None = Header(default=None)
+    login: str, discord: str, token: str, user_agent: str | None = Header(default=None)
 ) -> json:
 
     # if not await verify_user_agent(user_agent=user_agent):
     #     return
-    user_id = await verify_token(login=login, token=token, access_level=0)
+    user_id = await verify_token(
+        login=login, discord=discord, token=token, access_level=0
+    )
 
     table = ActiveMatches
     sql_user_actives = select(table).where(table.user_id == user_id)
@@ -111,6 +106,7 @@ async def get_matchmaking_status(
     sql: Select = select(
         columns=[
             Users.login,
+            Users.discord,
             ActiveMatches.party_identifier,
             ActiveMatches.has_accepted,
             ActiveMatches.timestamp,
@@ -129,9 +125,10 @@ async def get_matchmaking_status(
     for c, d in enumerate(data):
         temp_dict = dict()
         temp_dict["login"] = d[0]
-        temp_dict["party_identifier"] = d[1]
-        temp_dict["has_accepted"] = d[2]
-        temp_dict["timestamp"] = str(int(time.mktime(d[3].timetuple())))
+        temp_dict["discord"] = "NONE" if d[1] is None else str(d[1])
+        temp_dict["party_identifier"] = d[2]
+        temp_dict["has_accepted"] = d[3]
+        temp_dict["timestamp"] = str(int(time.mktime(d[4].timetuple())))
         cleaned_data.append(temp_dict)
 
     data = cleaned_data
@@ -143,12 +140,14 @@ async def get_matchmaking_status(
 
 @router.get("/V1/matchmaking/accept", tags=["matchmaking"])
 async def get_accept_matchmaking_request(
-    login: str, token: str, user_agent: str | None = Header(default=None)
+    login: str, discord: str, token: str, user_agent: str | None = Header(default=None)
 ) -> json:
 
     if not await verify_user_agent(user_agent=user_agent):
         return
-    user_id = await verify_token(login=login, token=token, access_level=0)
+    user_id = await verify_token(
+        login=login, discord=discord, token=token, access_level=0
+    )
     table = ActiveMatches
 
     sql = update(table).where(table.user_id == user_id).values(has_accepted=True)
@@ -161,22 +160,26 @@ async def get_accept_matchmaking_request(
 
 @router.get("/V1/matchmaking/deny", tags=["matchmaking"])
 async def get_deny_matchmaking_request(
-    login: str, token: str, user_agent: str | None = Header(default=None)
+    login: str, discord: str, token: str, user_agent: str | None = Header(default=None)
 ) -> json:
     """passes request to user_queue get user queue cancel, which will remove active match and queue. Causing reset. Can be reconfigured later if needed."""
     await user_queue.get_user_queue_cancel(
-        login=login, token=token, user_agent=user_agent
+        login=login, discord=discord, token=token, user_agent=user_agent
     )
     return {"detail": "queue canceled"}
 
 
 @router.get("/V1/matchmaking/end-session", tags=["matchmaking"])
 async def get_end_session_matchmaking_request(
-    login: str, token: str, user_agent: str | None = Header(default=None)
+    login: str, discord: str, token: str, user_agent: str | None = Header(default=None)
 ) -> json:
     """passes request to user_queue get user queue cancel, which will remove active match and queue. Causing reset. Can be reconfigured later if needed."""
     await user_queue.get_user_queue_cancel(
-        login=login, token=token, route_type="end session", user_agent=user_agent
+        login=login,
+        discord=discord,
+        token=token,
+        route_type="end session",
+        user_agent=user_agent,
     )
     return {"detail": "match ended"}
 
@@ -185,13 +188,18 @@ async def build_matchmaking_parties():
     """logic for building matchmaking parties - Runs every 5 seconds."""
     UserQueue_table = UserQueue
     ActiveMatches_table = ActiveMatches
+    WorldInformation_table = WorldInformation
 
     sql = select(UserQueue_table).where(UserQueue_table.in_queue == 1)
+    world_sql = select(WorldInformation_table)
     async with USERDATA_ENGINE.get_session() as session:
         session: AsyncSession = session
         async with session.begin():
             data = await session.execute(sql)
+            world_data = await session.execute(world_sql)
+
     df = pd.DataFrame(sqlalchemy_result(data).rows2dict())
+    df_world = pd.DataFrame(sqlalchemy_result(world_data).rows2dict())
 
     if len(df) == 0:
         return
@@ -199,8 +207,7 @@ async def build_matchmaking_parties():
     check_columns = [
         "activity",
         "party_member_count",
-        "us_east",
-        "us_west",
+        "us",
         "eu_central",
         "eu_west",
         "oceania",
@@ -218,7 +225,6 @@ async def build_matchmaking_parties():
 
     # Obtains the unique party numbers from the tally, this allows the groups to be managed
     unique_party_numbers = df.party_number.unique()
-
     # Creates a group header for labeling the output data
     group_header = str(int(time.time()))[5:]
     # Creates a party with user ID for final accumulation
@@ -231,6 +237,114 @@ async def build_matchmaking_parties():
 
         # obtains party member count from the sub dataframe
         party_member_count = df_sub["party_member_count"].unique()[0]
+        # gets party qualifiers
+        us = int(df_sub["us"].unique()[0])
+        eu_west = int(df_sub["eu_west"].unique()[0])
+        eu_central = int(df_sub["eu_central"].unique()[0])
+        oceania = int(df_sub["oceania"].unique()[0])
+        f2p = int(df_sub["f2p"].unique()[0])
+        p2p = int(df_sub["p2p"].unique()[0])
+
+        if f2p ^ p2p:
+            if f2p > p2p:
+                if us:
+                    world = int(
+                        df_world[(df_world["f2p"] == 1) & df_world["us"] == 1][
+                            "world_number"
+                        ]
+                        .sample()
+                        .values[0]
+                    )
+                if eu_central:
+                    world = int(
+                        df_world[(df_world["f2p"] == 1) & df_world["eu_central"] == 1][
+                            "world_number"
+                        ]
+                        .sample()
+                        .values[0]
+                    )
+                if eu_west:
+                    world = int(
+                        df_world[(df_world["f2p"] == 1) & df_world["eu_west"] == 1][
+                            "world_number"
+                        ]
+                        .sample()
+                        .values[0]
+                    )
+                if oceania:
+                    world = int(
+                        df_world[(df_world["f2p"] == 1) & df_world["oceania"] == 1][
+                            "world_number"
+                        ]
+                        .sample()
+                        .values[0]
+                    )
+            else:
+                if us:
+                    world = int(
+                        df_world[(df_world["p2p"] == 1) & df_world["us"] == 1][
+                            "world_number"
+                        ]
+                        .sample()
+                        .values[0]
+                    )
+                if eu_central:
+                    world = int(
+                        df_world[(df_world["p2p"] == 1) & df_world["eu_central"] == 1][
+                            "world_number"
+                        ]
+                        .sample()
+                        .values[0]
+                    )
+                if eu_west:
+                    world = int(
+                        df_world[(df_world["p2p"] == 1) & df_world["eu_west"] == 1][
+                            "world_number"
+                        ]
+                        .sample()
+                        .values[0]
+                    )
+                if oceania:
+                    world = int(
+                        df_world[(df_world["p2p"] == 1) & df_world["oceania"] == 1][
+                            "world_number"
+                        ]
+                        .sample()
+                        .values[0]
+                    )
+        else:
+            if us:
+                world = int(
+                    df_world[(df_world["p2p"] == 1) & df_world["us"] == 1][
+                        "world_number"
+                    ]
+                    .sample()
+                    .values[0]
+                )
+            if eu_central:
+                world = int(
+                    df_world[(df_world["p2p"] == 1) & df_world["eu_central"] == 1][
+                        "world_number"
+                    ]
+                    .sample()
+                    .values[0]
+                )
+            if eu_west:
+                world = int(
+                    df_world[(df_world["p2p"] == 1) & df_world["eu_west"] == 1][
+                        "world_number"
+                    ]
+                    .sample()
+                    .values[0]
+                )
+            if oceania:
+                world = int(
+                    df_world[(df_world["p2p"] == 1) & df_world["oceania"] == 1][
+                        "world_number"
+                    ]
+                    .sample()
+                    .values[0]
+                )
         # obtains the activity name from the sub dataframe
         activity_name = df_sub["activity"].values[0]
 
@@ -295,6 +409,7 @@ async def build_matchmaking_parties():
 
                 user_ids.append(user_id)
                 user_queue_IDs.append(user_queue_ID)
+
             parties_with_userid[
                 f"{activity_name}"
                 + "$"
@@ -305,6 +420,8 @@ async def build_matchmaking_parties():
                 + str(pn_c)
                 + "_"
                 + str(prty_number)
+                + "&world="
+                + str(world)
             ] = list(zip(user_ids, user_queue_IDs))
 
     values = []

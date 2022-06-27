@@ -3,6 +3,7 @@ import api.middleware
 import api.database.functions as functions
 from api.config import app
 from api.routers import (
+    party,
     matchmaking,
     user_queue,
     user_rating_history,
@@ -14,6 +15,7 @@ from api.routers import (
 import logging
 from fastapi_utils.tasks import repeat_every
 
+app.include_router(party.router)
 app.include_router(user_rating_history.router)
 app.include_router(matchmaking.router)
 app.include_router(user_token.router)
@@ -34,10 +36,14 @@ async def automated_tasks():
     3. Remove old active matches that have not yet been cleared.
     """
     try:
+
+        await functions.post_worlds()
         await functions.automatic_user_queue_cleanup()
         await matchmaking.build_matchmaking_parties()
         await functions.automatic_user_active_matches_cleanup()
-    except:
+
+    except Exception as e:
+        logger.warning(e)
         logger.info(f"Automated tasks have failed.")
         pass
 

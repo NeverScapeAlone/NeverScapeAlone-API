@@ -44,6 +44,7 @@ class user_points(BaseModel):
 @router.get("/V1/user-points/", tags=["user"])
 async def get_user_points(
     login: str,
+    discord: str,
     token: Optional[int] = None,
     ID: Optional[int] = None,
     user_id: Optional[int] = None,
@@ -63,7 +64,9 @@ async def get_user_points(
         json: requested output\n
     """
 
-    if not await verify_token(login=login, token=token, access_level=9):
+    if not await verify_token(
+        login=login, discord=discord, token=token, access_level=9
+    ):
         return
 
     table = UserPoints
@@ -93,7 +96,9 @@ async def get_user_points(
 
 
 @router.post("/V1/user-points", tags=["user"])
-async def post_user_token(login: str, token: str, user_points: user_points) -> json:
+async def post_user_token(
+    login: str, discord: str, token: str, user_points: user_points
+) -> json:
     """
     Args:\n
         user_points (user_points): user points model\n
@@ -102,7 +107,9 @@ async def post_user_token(login: str, token: str, user_points: user_points) -> j
         json: {"ok": "ok"}\n
     """
 
-    if not await verify_token(login=login, token=token, access_level=9):
+    if not await verify_token(
+        login=login, discord=discord, token=token, access_level=9
+    ):
         return
 
     values = user_points.dict()
