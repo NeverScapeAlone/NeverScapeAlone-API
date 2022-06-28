@@ -41,7 +41,7 @@ class user_rating_history(BaseModel):
     request_history_id: Optional[int]
 
 
-@router.get("/V1/user-rating-history/", tags=["user", "rating history"])
+@router.get("/V1/user-rating-history/", tags=["user"])
 async def get_user_rating_history(
     token: str,
     login: str,
@@ -71,9 +71,6 @@ async def get_user_rating_history(
     Returns:\n
         json: JSON response object of the above content\n
     """
-
-    if not await verify_token(login=login, token=token, access_level=9):
-        return
 
     table = UserRatingHistory
     sql: Select = select(table)
@@ -110,7 +107,7 @@ async def get_user_rating_history(
     return data.rows2dict()
 
 
-@router.post("/V1/user-rating-history", tags=["user", "rating history"])
+@router.post("/V1/user-rating-history", tags=["user"])
 async def post_user_rating_history(
     login: str, token: str, user_rating_history: user_rating_history
 ) -> json:
@@ -120,9 +117,6 @@ async def post_user_rating_history(
     Returns:\n
         json: {"ok": "ok"}\n
     """
-
-    if not await verify_token(login=login, token=token, access_level=9):
-        return
 
     values = user_rating_history.dict()
     table = UserRatingHistory

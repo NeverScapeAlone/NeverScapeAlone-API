@@ -43,6 +43,7 @@ class users(BaseModel):
 @router.get("/V1/users/", tags=["user"])
 async def get_users(
     token: str,
+    discord: str,
     user_id: Optional[int] = None,
     login: Optional[str] = None,
     timestamp: Optional[datetime] = None,
@@ -65,7 +66,9 @@ async def get_users(
         json: output as listed above\n
     """
 
-    if not await verify_token(login=login, token=token, access_level=9):
+    if not await verify_token(
+        login=login, discord=discord, token=token, access_level=9
+    ):
         return
 
     table = Users
@@ -91,7 +94,7 @@ async def get_users(
 
 
 @router.post("/V1/users", tags=["user"])
-async def post_users(login: str, token: str, users: users) -> json:
+async def post_users(login: str, discord: str, token: str, users: users) -> json:
     """
     Args:\n
         users (users): users model\n
@@ -102,7 +105,9 @@ async def post_users(login: str, token: str, users: users) -> json:
         json: {"ok": "ok"}\n
     """
 
-    if not await verify_token(login=login, token=token, access_level=9):
+    if not await verify_token(
+        login=login, discord=discord, token=token, access_level=9
+    ):
         return
 
     values = users.dict()
