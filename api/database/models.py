@@ -28,6 +28,8 @@ class Users(Base):
     user_id = Column(Integer, primary_key=True)
     login = Column(VARCHAR(64))
     discord = Column(VARCHAR(64))
+    runewatch = Column(TEXT)
+    wdr = Column(TEXT)
     timestamp = Column(TIMESTAMP)
 
 

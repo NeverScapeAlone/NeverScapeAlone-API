@@ -96,9 +96,22 @@ async def get_matchmaking_status(
         async with session.begin():
             data = await session.execute(sql_user_actives)
 
+    version = "V1.0.0-beta"
+
     data = sqlalchemy_result(data).rows2dict()
     if len(data) == 0:
-        return {"detail": "no active matches"}
+        data_array = []
+        temp_dict = dict()
+        temp_dict["login"] = "NONE"
+        temp_dict["discord"] = "NONE"
+        temp_dict["runewatch"] = "NONE"
+        temp_dict["wdr"] = "NONE"
+        temp_dict["party_identifier"] = "NO PARTY"
+        temp_dict["has_accepted"] = False
+        temp_dict["timestamp"] = str(int(time.time()))
+        temp_dict["version"] = version
+        data_array.append(temp_dict)
+        return data_array
 
     df = pd.DataFrame(data)
     party_identifiers = df.party_identifier.unique()
@@ -107,6 +120,8 @@ async def get_matchmaking_status(
         columns=[
             Users.login,
             Users.discord,
+            Users.runewatch,
+            Users.wdr,
             ActiveMatches.party_identifier,
             ActiveMatches.has_accepted,
             ActiveMatches.timestamp,
@@ -126,14 +141,29 @@ async def get_matchmaking_status(
         temp_dict = dict()
         temp_dict["login"] = d[0]
         temp_dict["discord"] = "NONE" if d[1] is None else str(d[1])
-        temp_dict["party_identifier"] = d[2]
-        temp_dict["has_accepted"] = d[3]
-        temp_dict["timestamp"] = str(int(time.mktime(d[4].timetuple())))
+        temp_dict["runewatch"] = "NONE" if d[2] is None else str(d[2])
+        temp_dict["wdr"] = "NONE" if d[3] is None else str(d[3])
+        temp_dict["party_identifier"] = d[4]
+        temp_dict["has_accepted"] = d[5]
+        temp_dict["timestamp"] = str(int(time.mktime(d[6].timetuple())))
+        temp_dict["version"] = version
         cleaned_data.append(temp_dict)
 
     data = cleaned_data
+
     if len(data) <= 1:
-        return {"detail": "no active matches"}
+        data_array = []
+        temp_dict = dict()
+        temp_dict["login"] = "NONE"
+        temp_dict["discord"] = "NONE"
+        temp_dict["runewatch"] = "NONE"
+        temp_dict["wdr"] = "NONE"
+        temp_dict["party_identifier"] = "NO PARTY"
+        temp_dict["has_accepted"] = False
+        temp_dict["timestamp"] = str(int(time.time()))
+        temp_dict["version"] = version
+        data_array.append(temp_dict)
+        return data_array
 
     return data
 
@@ -439,8 +469,6 @@ async def build_matchmaking_parties():
     # if no values to send
     if len(values) == 0:
         return
-
-    logger.info(f"Posting Active Matches")
 
     sql = insert(ActiveMatches_table).values(values).prefix_with("ignore")
 
