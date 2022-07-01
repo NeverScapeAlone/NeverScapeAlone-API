@@ -9,7 +9,8 @@ from asyncio.tasks import create_task
 from collections import namedtuple
 from datetime import datetime, timedelta
 from dis import disco
-from typing import List
+from typing import List, Optional
+from mysqlx import UpdateStatement
 
 import pandas as pd
 import requests
@@ -26,8 +27,8 @@ from pydantic import BaseModel
 from sqlalchemy import Text, text
 from sqlalchemy.exc import InternalError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncResult, AsyncSession
+from sqlalchemy.sql import case, text
 from sqlalchemy.sql.expression import delete, insert, select, update
-from sqlalchemy.sql import text
 
 logger = logging.getLogger(__name__)
 
@@ -44,12 +45,16 @@ class world_loader(BaseModel):
     oceania: int
 
 
+class userBanUpdate(BaseModel):
+    login: str
+    wdr: Optional[str]
+    runewatch: Optional[str]
+
+
 async def automatic_user_queue_cleanup():
     table = UserQueue
     # or (table.timestamp <= datetime.utcnow() - timedelta(minutes=60))
     sql = delete(table).where(table.in_queue == 0).prefix_with("ignore")
-
-    logger.info(f"Removing Old Queues and Cleaning")
 
     async with USERDATA_ENGINE.get_session() as session:
         session: AsyncSession = session
@@ -65,7 +70,48 @@ async def automatic_user_active_matches_cleanup():
         .prefix_with("ignore")
     )
 
-    logger.info(f"Cleaning Active Matches")
+    async with USERDATA_ENGINE.get_session() as session:
+        session: AsyncSession = session
+        async with session.begin():
+            await session.execute(sql)
+
+
+async def get_wdr_bans():
+    data = requests.get("https://wdrdev.github.io/banlist.json")
+    json_array = json.loads(data.content)
+
+    payload_list = []
+    for json_data in json_array:
+        login = "'" + json_data["CURRENT RSN"] + "'"
+        wdr = "'" + json_data["Category"].replace("'", "") + "'"
+        s = "(" + login + "," + wdr + ")"
+        payload_list.append(s)
+
+    sql = text(
+        f"""INSERT INTO users (login, wdr) VALUES {", ".join(payload_list)} ON DUPLICATE KEY UPDATE wdr = VALUES(wdr);"""
+    )
+
+    async with USERDATA_ENGINE.get_session() as session:
+        session: AsyncSession = session
+        async with session.begin():
+            await session.execute(sql)
+
+
+async def get_runewatch_bans():
+    data = requests.get("https://runewatch.com/api/v2/rsn")
+    json_nested = json.loads(data.content)
+
+    payload_list = []
+    for group in json_nested:
+        array_payload = json_nested[group][0]
+        login = "'" + array_payload["rsn"].replace("'", "") + "'"
+        runewatch = "'" + array_payload["type"].replace("'", "") + "'"
+        s = "(" + login + "," + runewatch + ")"
+        payload_list.append(s)
+
+    sql = text(
+        f"""INSERT INTO users (login, runewatch) VALUES {", ".join(payload_list)} ON DUPLICATE KEY UPDATE runewatch = VALUES(runewatch);"""
+    )
 
     async with USERDATA_ENGINE.get_session() as session:
         session: AsyncSession = session
@@ -85,18 +131,12 @@ async def post_worlds():
 
     payload = sqlalchemy_result(data).rows2dict()
     if len(payload) == 0:
-        logging.info(
-            f"Payload empty, sending request to RuneLite for world information."
-        )
         await update_world_information()
         return
 
     if pd.DataFrame(payload).timestamp.max() <= datetime.utcnow() - timedelta(
         minutes=30
     ):
-        logging.info(
-            f"World Data Old, sending request to RuneLite for world information."
-        )
         sql = text("TRUNCATE TABLE world_information")
         async with USERDATA_ENGINE.get_session() as session:
             session: AsyncSession = session

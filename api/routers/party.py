@@ -14,7 +14,6 @@ from h11 import InformationalResponse
 from pydantic import BaseModel
 from pydantic.fields import Field
 from pyparsing import Opt
-from requests import request
 
 router = APIRouter()
 
