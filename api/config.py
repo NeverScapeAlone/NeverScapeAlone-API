@@ -12,8 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # load environment variables
 load_dotenv(find_dotenv(), verbose=True)
 sql_uri = os.environ.get("sql_uri")
-token = os.environ.get("token")
-
+DISCORD_TOKEN = os.environ.get("discord_route_token")
 # create application
 app = FastAPI()
 

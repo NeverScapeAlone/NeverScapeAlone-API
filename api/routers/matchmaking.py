@@ -82,8 +82,8 @@ async def get_matchmaking_status(
     login: str, discord: str, token: str, user_agent: str | None = Header(default=None)
 ) -> json:
 
-    # if not await verify_user_agent(user_agent=user_agent):
-    #     return
+    if not await verify_user_agent(user_agent=user_agent):
+        return
     user_id = await verify_token(
         login=login, discord=discord, token=token, access_level=0
     )
@@ -96,7 +96,7 @@ async def get_matchmaking_status(
         async with session.begin():
             data = await session.execute(sql_user_actives)
 
-    version = "V1.0.0-beta"
+    version = "v1.0.0-alpha"
 
     data = sqlalchemy_result(data).rows2dict()
     if len(data) == 0:
@@ -104,6 +104,7 @@ async def get_matchmaking_status(
         temp_dict = dict()
         temp_dict["login"] = "NONE"
         temp_dict["discord"] = "NONE"
+        temp_dict["verified"] = "NONE"
         temp_dict["runewatch"] = "NONE"
         temp_dict["wdr"] = "NONE"
         temp_dict["party_identifier"] = "NO PARTY"
@@ -120,6 +121,7 @@ async def get_matchmaking_status(
         columns=[
             Users.login,
             Users.discord,
+            Users.verified,
             Users.runewatch,
             Users.wdr,
             ActiveMatches.party_identifier,
@@ -141,11 +143,12 @@ async def get_matchmaking_status(
         temp_dict = dict()
         temp_dict["login"] = d[0]
         temp_dict["discord"] = "NONE" if d[1] is None else str(d[1])
-        temp_dict["runewatch"] = "NONE" if d[2] is None else str(d[2])
-        temp_dict["wdr"] = "NONE" if d[3] is None else str(d[3])
-        temp_dict["party_identifier"] = d[4]
-        temp_dict["has_accepted"] = d[5]
-        temp_dict["timestamp"] = str(int(time.mktime(d[6].timetuple())))
+        temp_dict["verified"] = d[2]
+        temp_dict["runewatch"] = "NONE" if d[3] is None else str(d[3])
+        temp_dict["wdr"] = "NONE" if d[4] is None else str(d[4])
+        temp_dict["party_identifier"] = d[5]
+        temp_dict["has_accepted"] = d[6]
+        temp_dict["timestamp"] = str(int(time.mktime(d[7].timetuple())))
         temp_dict["version"] = version
         cleaned_data.append(temp_dict)
 
@@ -156,6 +159,7 @@ async def get_matchmaking_status(
         temp_dict = dict()
         temp_dict["login"] = "NONE"
         temp_dict["discord"] = "NONE"
+        temp_dict["verified"] = "NONE"
         temp_dict["runewatch"] = "NONE"
         temp_dict["wdr"] = "NONE"
         temp_dict["party_identifier"] = "NO PARTY"
