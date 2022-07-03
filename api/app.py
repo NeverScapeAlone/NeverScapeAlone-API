@@ -52,17 +52,17 @@ async def automated_tasks():
         pass
 
 
-# @app.on_event("startup")
-# @repeat_every(seconds=3600, raise_exceptions=True)
-# async def ban_collection():
-#     try:
-#         await functions.get_wdr_bans()
-#         await functions.get_runewatch_bans()
-#         logger.info(f"Ban collection finished.")
-#     except Exception as e:
-#         logger.warning(e)
-#         logger.info(f"Ban collection has failed.")
-#         pass
+@app.on_event("startup")
+@repeat_every(seconds=3600, raise_exceptions=True)
+async def ban_collection():
+    try:
+        await functions.get_wdr_bans()
+        await functions.get_runewatch_bans()
+        logger.info(f"Ban collection finished.")
+    except Exception as e:
+        logger.warning(e)
+        logger.info(f"Ban collection has failed.")
+        pass
 
 
 @app.get("/")

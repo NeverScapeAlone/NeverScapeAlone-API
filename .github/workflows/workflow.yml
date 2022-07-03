@@ -18,6 +18,4 @@ jobs:
     steps:
       - name: Docker
         run: |
-          sudo docker-compose down
           sudo docker-compose up --build -d
-          sudo docker system prune -a
