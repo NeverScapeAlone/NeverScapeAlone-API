@@ -11,13 +11,11 @@ jobs:
     - name: Set Up ENV
       run: |
           echo "${{ secrets.SQL_URI }}" > .env
-
+          echo "${{ secrets.DISCORD_ROUTE_TOKEN}}" >> .env
   deploy:
     runs-on: self-hosted
     needs: [checkout]
     steps:
       - name: Docker
         run: |
-          sudo docker-compose down
           sudo docker-compose up --build -d
-          sudo docker system prune -a

@@ -11,10 +11,12 @@ from api.routers import (
     user_points,
     users,
     status,
+    discord,
 )
 import logging
 from fastapi_utils.tasks import repeat_every
 
+app.include_router(discord.router)
 app.include_router(party.router)
 app.include_router(user_rating_history.router)
 app.include_router(matchmaking.router)
