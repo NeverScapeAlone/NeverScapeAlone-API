@@ -4,18 +4,23 @@ import os
 import sys
 import warnings
 
-# import logging_loki
 from dotenv import find_dotenv, load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import aioredis
 
 # load environment variables
 load_dotenv(find_dotenv(), verbose=True)
 sql_uri = os.environ.get("sql_uri")
 DISCORD_TOKEN = os.environ.get("discord_route_token")
+REDIS_PASSWORD = os.environ.get("redis_password")
+
+redis_client = aioredis.from_url(
+    url="redis://touchgrass.online", port=6379, db=0, password=REDIS_PASSWORD
+)
+
 # create application
 app = FastAPI()
-
 
 app.add_middleware(
     CORSMiddleware,

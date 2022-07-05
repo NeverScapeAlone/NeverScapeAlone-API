@@ -79,6 +79,7 @@ class ActiveMatches(Base):
     activity = Column(TEXT)
     party_member_count = Column(Integer)
     has_accepted = Column(Boolean, default=False)
+    discord_invite = Column(TEXT, default=None)
     timestamp = Column(TIMESTAMP)
 
 

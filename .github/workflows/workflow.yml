@@ -12,6 +12,7 @@ jobs:
       run: |
           echo "${{ secrets.SQL_URI }}" > .env
           echo "${{ secrets.DISCORD_ROUTE_TOKEN}}" >> .env
+          echo "${{ secrets.REDIS_PASSWORD}}" >> .env
   deploy:
     runs-on: self-hosted
     needs: [checkout]

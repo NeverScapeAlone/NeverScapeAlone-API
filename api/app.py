@@ -1,7 +1,7 @@
 from sqlalchemy import true
 import api.middleware
 import api.database.functions as functions
-from api.config import app
+from api.config import app, redis_client
 from api.routers import (
     party,
     matchmaking,
@@ -52,17 +52,25 @@ async def automated_tasks():
         pass
 
 
+# @app.on_event("startup")
+# @repeat_every(seconds=3600, raise_exceptions=True)
+# async def ban_collection():
+#     try:
+#         await functions.get_wdr_bans()
+#         await functions.get_runewatch_bans()
+#         logger.info(f"Ban collection finished.")
+#     except Exception as e:
+#         logger.warning(e)
+#         logger.info(f"Ban collection has failed.")
+#         pass
+
+
 @app.on_event("startup")
-@repeat_every(seconds=3600, raise_exceptions=True)
-async def ban_collection():
-    try:
-        await functions.get_wdr_bans()
-        await functions.get_runewatch_bans()
-        logger.info(f"Ban collection finished.")
-    except Exception as e:
-        logger.warning(e)
-        logger.info(f"Ban collection has failed.")
-        pass
+async def redis_health_check():
+    if await redis_client.ping():
+        logging.info("REDIS SERVER CONNECTED!")
+    else:
+        logging.critical("REDIS SERVER IS NOT ACCESSIBLE!")
 
 
 @app.get("/")
