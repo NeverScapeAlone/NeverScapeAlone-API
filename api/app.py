@@ -1,9 +1,9 @@
+from urllib.request import Request
 from sqlalchemy import true
 import api.middleware
 import api.database.functions as functions
-from api.config import app
+from api.config import app, redis_client
 from api.routers import (
-    party,
     matchmaking,
     user_queue,
     user_rating_history,
@@ -17,7 +17,6 @@ import logging
 from fastapi_utils.tasks import repeat_every
 
 app.include_router(discord.router)
-app.include_router(party.router)
 app.include_router(user_rating_history.router)
 app.include_router(matchmaking.router)
 app.include_router(user_token.router)
@@ -63,6 +62,14 @@ async def ban_collection():
         logger.warning(e)
         logger.info(f"Ban collection has failed.")
         pass
+
+
+@app.on_event("startup")
+async def redis_health_check():
+    if await redis_client.ping():
+        logging.info("REDIS SERVER CONNECTED!")
+    else:
+        logging.critical("REDIS SERVER IS NOT ACCESSIBLE!")
 
 
 @app.get("/")

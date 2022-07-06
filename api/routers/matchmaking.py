@@ -110,6 +110,7 @@ async def get_matchmaking_status(
         temp_dict["party_identifier"] = "NO PARTY"
         temp_dict["has_accepted"] = False
         temp_dict["timestamp"] = str(int(time.time()))
+        temp_dict["discord_invite"] = "NONE"
         temp_dict["version"] = version
         data_array.append(temp_dict)
         return data_array
@@ -127,6 +128,7 @@ async def get_matchmaking_status(
             ActiveMatches.party_identifier,
             ActiveMatches.has_accepted,
             ActiveMatches.timestamp,
+            ActiveMatches.discord_invite,
         ]
     )
 
@@ -149,6 +151,7 @@ async def get_matchmaking_status(
         temp_dict["party_identifier"] = d[5]
         temp_dict["has_accepted"] = d[6]
         temp_dict["timestamp"] = str(int(time.mktime(d[7].timetuple())))
+        temp_dict["discord_invite"] = "NONE" if d[8] is None else str(d[8])
         temp_dict["version"] = version
         cleaned_data.append(temp_dict)
 
@@ -165,6 +168,7 @@ async def get_matchmaking_status(
         temp_dict["party_identifier"] = "NO PARTY"
         temp_dict["has_accepted"] = False
         temp_dict["timestamp"] = str(int(time.time()))
+        temp_dict["discord_invite"] = "NONE"
         temp_dict["version"] = version
         data_array.append(temp_dict)
         return data_array

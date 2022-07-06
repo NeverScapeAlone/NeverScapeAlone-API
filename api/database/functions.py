@@ -5,6 +5,8 @@ import random
 import re
 import time
 import traceback
+from unicodedata import name
+from api.config import redis_client
 from asyncio.tasks import create_task
 from collections import namedtuple
 from datetime import datetime, timedelta
@@ -22,7 +24,7 @@ from api.database.models import (
     UserToken,
     WorldInformation,
 )
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import Text, text
 from sqlalchemy.exc import InternalError, OperationalError
@@ -64,11 +66,10 @@ async def automatic_user_queue_cleanup():
 
 async def automatic_user_active_matches_cleanup():
     table = ActiveMatches
-    sql = (
-        delete(table)
-        .where(table.timestamp <= datetime.utcnow() - timedelta(minutes=60))
-        .prefix_with("ignore")
-    )
+    sql = delete(table)
+    sql = sql.where(table.timestamp <= datetime.utcnow() - timedelta(minutes=60))
+    sql = sql.where(table.has_accepted == 0)
+    sql = sql.prefix_with("ignore")
 
     async with USERDATA_ENGINE.get_session() as session:
         session: AsyncSession = session
@@ -216,6 +217,7 @@ async def world_data_conversion(world_data):
 
 
 async def verify_user_agent(user_agent):
+    print(user_agent)
     if not re.fullmatch("^RuneLite", user_agent[:8]):
         raise HTTPException(
             status_code=202,
@@ -252,15 +254,7 @@ async def verify_token_construction(token: str) -> bool:
 
 
 async def verify_token(login: str, discord: str, token: str, access_level=0) -> int:
-    """User verification request - this display's the user's access level and if they have permissions to access the content that they wish to view.
 
-    Args:
-        login (str): The username that is sending the auth request
-        token (str): The auth token being sent by the user
-
-    Returns:
-        bool: True|False depending upon if the request was successful, or not.
-    """
     if not await verify_token_construction(token=token):
         return
 
@@ -268,6 +262,14 @@ async def verify_token(login: str, discord: str, token: str, access_level=0) -> 
         return
 
     discord = await validate_discord(discord=discord)
+
+    """check redis cache"""
+    rlogin = login.replace(" ", "_")
+    rdiscord = "None" if discord is None else discord
+    key = f"{rlogin}:{token}:{rdiscord}"
+    user_id = await redis_client.get(name=key)
+    if user_id is not None:
+        return user_id
 
     sql = select(UserToken)
     sql = sql.where(UserToken.token == token)
@@ -293,6 +295,9 @@ async def verify_token(login: str, discord: str, token: str, access_level=0) -> 
         )
 
     user_id = data[0]["user_id"]
+
+    """set redis cache"""
+    await redis_client.set(name=key, value=user_id, ex=120)
     return user_id
 
 

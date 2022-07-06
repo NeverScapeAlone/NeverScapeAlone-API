@@ -1,7 +1,9 @@
 aiofiles==0.8.0
+aioredis==2.0.1
 anyio==3.5.0
 APScheduler==3.8.1
 asgiref==3.5.0
+async-timeout==4.0.2
 asyncmy==0.2.3
 atomicwrites==1.4.0
 attrs==21.4.0
@@ -12,6 +14,7 @@ charset-normalizer==2.0.11
 click==8.0.3
 colorama==0.4.4
 cryptography==36.0.1
+Deprecated==1.2.13
 discord-webhook==0.14.0
 fastapi==0.73.0
 fastapi-utils==0.2.1
@@ -40,6 +43,7 @@ python-dotenv==0.19.2
 python-multipart==0.0.5
 pytz==2021.3
 pytz-deprecation-shim==0.1.0.post0
+redis==4.3.4
 requests==2.27.1
 rfc3339==6.2
 six==1.16.0
@@ -53,4 +57,5 @@ tzdata==2021.5
 tzlocal==4.1
 urllib3==1.26.8
 uvicorn==0.17.3
+wrapt==1.14.1
 XlsxWriter==3.0.2
