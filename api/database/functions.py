@@ -55,8 +55,12 @@ class userBanUpdate(BaseModel):
 
 async def automatic_user_queue_cleanup():
     table = UserQueue
-    # or (table.timestamp <= datetime.utcnow() - timedelta(minutes=60))
-    sql = delete(table).where(table.in_queue == 0).prefix_with("ignore")
+    sql = delete(table)
+    sql = sql.where(
+        (table.in_queue == 0)
+        or (table.timestamp <= datetime.utcnow() - timedelta(minutes=360))
+    )
+    sql = sql.prefix_with("ignore")
 
     async with USERDATA_ENGINE.get_session() as session:
         session: AsyncSession = session
