@@ -5,6 +5,7 @@ import random
 import re
 import time
 import traceback
+from unicodedata import name
 from api.config import redis_client
 from asyncio.tasks import create_task
 from collections import namedtuple
@@ -23,7 +24,7 @@ from api.database.models import (
     UserToken,
     WorldInformation,
 )
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import Text, text
 from sqlalchemy.exc import InternalError, OperationalError
@@ -216,6 +217,7 @@ async def world_data_conversion(world_data):
 
 
 async def verify_user_agent(user_agent):
+    print(user_agent)
     if not re.fullmatch("^RuneLite", user_agent[:8]):
         raise HTTPException(
             status_code=202,
@@ -265,7 +267,7 @@ async def verify_token(login: str, discord: str, token: str, access_level=0) -> 
     rlogin = login.replace(" ", "_")
     rdiscord = "None" if discord is None else discord
     key = f"{rlogin}:{token}:{rdiscord}"
-    user_id = await redis_client.get(key)
+    user_id = await redis_client.get(name=key)
     if user_id is not None:
         return user_id
 
@@ -295,7 +297,7 @@ async def verify_token(login: str, discord: str, token: str, access_level=0) -> 
     user_id = data[0]["user_id"]
 
     """set redis cache"""
-    await redis_client.set(key=key, value=user_id, ex=120)
+    await redis_client.set(name=key, value=user_id, ex=120)
     return user_id
 
 

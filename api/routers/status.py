@@ -15,7 +15,7 @@ from api.database.functions import (
     verify_user_agent,
     verify_token,
 )
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Header, Request
 
 from pydantic import BaseModel
 from pydantic.fields import Field
@@ -28,7 +28,10 @@ MAINTENANCE = "maintenance"
 
 @router.get("/V1/server-status/", tags=["status"])
 async def get_server_health(
-    login: str, discord: str, token: str, user_agent: str | None = Header(default=None)
+    login: str,
+    discord: str,
+    token: str,
+    user_agent: str | None = Header(default=None),
 ) -> json:
 
     if not await verify_user_agent(user_agent=user_agent):
