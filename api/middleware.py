@@ -28,8 +28,8 @@ async def redis_ratelimit(request: Request):
     minute = int(time.time() / 60)
     hour = int(time.time() / 3600)
 
-    client_minute = f"{client_host}:{minute}"
-    client_hour = f"{client_host}:{hour}"
+    client_minute = f"minute:{client_host}:{minute}"
+    client_hour = f"hour:{client_host}:{hour}"
 
     minute_hits, hour_hits = await redis_client.mget(keys=[client_minute, client_hour])
 

@@ -6,9 +6,7 @@ from api.config import app, redis_client
 from api.routers import (
     matchmaking,
     user_queue,
-    user_rating_history,
     user_token,
-    user_points,
     users,
     status,
     discord,
@@ -17,10 +15,8 @@ import logging
 from fastapi_utils.tasks import repeat_every
 
 app.include_router(discord.router)
-app.include_router(user_rating_history.router)
 app.include_router(matchmaking.router)
 app.include_router(user_token.router)
-app.include_router(user_points.router)
 app.include_router(user_queue.router)
 app.include_router(users.router)
 app.include_router(status.router)
