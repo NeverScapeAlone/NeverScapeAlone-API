@@ -71,3 +71,7 @@ async def process_request(request: Request, call_next):
     url = request.url.remove_query_params("token")._url
     logger.debug({"url": url, "process_time": process_time})
     return response
+
+
+async def redis_cache_response():
+    return
