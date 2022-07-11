@@ -21,6 +21,7 @@ from api.database.functions import (
     verify_token,
     verify_user_agent,
 )
+from api.config import redis_client, VERSION
 from api.database.models import ActiveMatches, UserQueue, Users, WorldInformation
 from api.routers import user_queue
 from certifi import where
@@ -96,8 +97,6 @@ async def get_matchmaking_status(
         async with session.begin():
             data = await session.execute(sql_user_actives)
 
-    version = "v1.0.0-alpha"
-
     data = sqlalchemy_result(data).rows2dict()
     if len(data) == 0:
         data_array = []
@@ -111,7 +110,7 @@ async def get_matchmaking_status(
         temp_dict["has_accepted"] = False
         temp_dict["timestamp"] = str(int(time.time()))
         temp_dict["discord_invite"] = "NONE"
-        temp_dict["version"] = version
+        temp_dict["version"] = VERSION
         data_array.append(temp_dict)
         return data_array
 
@@ -152,7 +151,7 @@ async def get_matchmaking_status(
         temp_dict["has_accepted"] = d[6]
         temp_dict["timestamp"] = str(int(time.mktime(d[7].timetuple())))
         temp_dict["discord_invite"] = "NONE" if d[8] is None else str(d[8])
-        temp_dict["version"] = version
+        temp_dict["version"] = VERSION
         cleaned_data.append(temp_dict)
 
     data = cleaned_data
@@ -169,7 +168,7 @@ async def get_matchmaking_status(
         temp_dict["has_accepted"] = False
         temp_dict["timestamp"] = str(int(time.time()))
         temp_dict["discord_invite"] = "NONE"
-        temp_dict["version"] = version
+        temp_dict["version"] = VERSION
         data_array.append(temp_dict)
         return data_array
 
