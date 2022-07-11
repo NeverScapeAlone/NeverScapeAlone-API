@@ -272,6 +272,7 @@ async def verify_token(login: str, discord: str, token: str, access_level=0) -> 
     key = f"{rlogin}:{token}:{rdiscord}"
     user_id = await redis_client.get(name=key)
     if user_id is not None:
+        user_id = int(user_id)
         return user_id
 
     sql = select(UserToken)
