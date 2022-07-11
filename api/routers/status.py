@@ -1,25 +1,21 @@
+import json
+import os
+import time
 from cgitb import text
 from datetime import datetime
-import json
 from optparse import Option
 from pickletools import optimize
 from pstats import Stats
 from typing import Optional
+
+from api.config import redis_client
+from api.database.functions import verify_token, verify_user_agent
+from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from h11 import InformationalResponse
-import os
-
-from pyparsing import Opt
-from requests import request
-
-from api.database.functions import (
-    verify_user_agent,
-    verify_token,
-)
-from fastapi import APIRouter, Header, Request
-
 from pydantic import BaseModel
 from pydantic.fields import Field
-from api.config import redis_client
+from pyparsing import Opt
+from requests import request
 
 router = APIRouter()
 
@@ -34,6 +30,9 @@ async def get_server_health(
     token: str,
     user_agent: str | None = Header(default=None),
 ) -> json:
+    """
+    Check server status, chances are -- if you can ping this, you're alive.
+    """
 
     if not await verify_user_agent(user_agent=user_agent):
         return
@@ -45,6 +44,9 @@ async def get_server_health(
 
 @router.get("/V1/server-status/connections", tags=["status"])
 async def get_server_health() -> json:
+    """
+    Get active server connections
+    """
     minute_connections = await redis_client.keys("minute:*")
     hour_connections = await redis_client.keys("hour:*")
     minute_connections_count, hour_connections_count = len(minute_connections), len(
@@ -53,4 +55,15 @@ async def get_server_health() -> json:
     return {
         "minute_connections": minute_connections_count,
         "hour_connections": hour_connections_count,
+        "time": time.time(),
     }
+
+
+@router.get("/V1/server-status/echo", tags=["status"])
+async def echo(
+    echo_string: Optional[str] = Query(..., min_length=0, max_length=100),
+) -> json:
+    """
+    Echo a string from the server
+    """
+    return {"echo": echo_string, "time": time.time()}

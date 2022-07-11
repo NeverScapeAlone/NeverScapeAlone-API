@@ -221,7 +221,6 @@ async def world_data_conversion(world_data):
 
 
 async def verify_user_agent(user_agent):
-    print(user_agent)
     if not re.fullmatch("^RuneLite", user_agent[:8]):
         raise HTTPException(
             status_code=202,

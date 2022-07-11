@@ -17,7 +17,6 @@ async def request_handler(request: Request, call_next):
     response = await redis_ratelimit(request=request)
     if response is not None:
         return response
-
     response = await process_request(request=request, call_next=call_next)
     return response
 
@@ -71,3 +70,7 @@ async def process_request(request: Request, call_next):
     url = request.url.remove_query_params("token")._url
     logger.debug({"url": url, "process_time": process_time})
     return response
+
+
+async def redis_cache_response():
+    return

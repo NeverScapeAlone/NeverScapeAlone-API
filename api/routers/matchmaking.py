@@ -2,7 +2,6 @@ import json
 import logging
 import time
 from ast import Delete
-from cgitb import text
 from dataclasses import replace
 from datetime import datetime
 from optparse import Option
@@ -22,8 +21,8 @@ from api.database.functions import (
     verify_token,
     verify_user_agent,
 )
-from api.routers import user_queue
 from api.database.models import ActiveMatches, UserQueue, Users, WorldInformation
+from api.routers import user_queue
 from certifi import where
 from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from fastapi_utils.tasks import repeat_every
@@ -38,6 +37,7 @@ from sqlalchemy import TEXT, TIMESTAMP, select, table, tuple_, values
 from sqlalchemy.dialects.mysql import Insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
+from sqlalchemy.sql import case, text
 from sqlalchemy.sql.expression import Select, insert, select, update
 
 logger = logging.getLogger(__name__)
@@ -186,9 +186,56 @@ async def get_accept_matchmaking_request(
     user_id = await verify_token(
         login=login, discord=discord, token=token, access_level=0
     )
-    table = ActiveMatches
 
-    sql = update(table).where(table.user_id == user_id).values(has_accepted=True)
+    user_id = str(int(user_id))
+
+    statement = f"""
+    UPDATE active_matches as am2
+    SET am2.has_accepted = 1
+    WHERE am2.ID = (
+        SELECT * FROM
+            (
+            SELECT
+                am1.ID
+            FROM active_matches as am1
+            WHERE 1=1
+                and am1.user_id = {str(user_id)}
+            ORDER BY am1.ID desc
+            LIMIT 1
+            ) 
+        as t);
+
+    UPDATE active_matches as am2
+    SET am2.has_accepted = 2
+    WHERE am2.ID in (
+        SELECT * FROM
+    (
+        SELECT
+            am1.ID
+        FROM active_matches as am1
+        WHERE 1=1
+            and am1.user_id = {str(user_id)}
+            and am1.has_accepted = 0
+        ORDER BY am1.ID desc
+    ) as t);
+    
+    UPDATE user_queue as uq
+    SET uq.in_queue = 0
+    WHERE uq.ID in (
+        SELECT * FROM
+    (
+        SELECT
+            am.user_queue_ID
+        FROM active_matches as am
+        WHERE 1=1
+            and am.user_id = {str(user_id)}
+            and am.has_accepted = 2
+        ORDER BY am.ID desc
+    ) as t);
+
+    """
+
+    sql = text(statement)
     async with USERDATA_ENGINE.get_session() as session:
         session: AsyncSession = session
         async with session.begin():

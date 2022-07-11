@@ -23,7 +23,15 @@ redis_client = aioredis.from_url(
 )
 
 # create application
-app = FastAPI()
+app = FastAPI(
+    title="NeverScapeAlone",
+    version="1.0.2-alpha",
+    contact={
+        "name": "NeverScapeAlone",
+        "url": "https://twitter.com/NeverScapeAlone",
+        "email": "ferrariictweet@gmail.com",
+    },
+)
 
 app.add_middleware(
     CORSMiddleware,
