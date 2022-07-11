@@ -238,12 +238,21 @@ async def is_valid_rsn(login: str) -> bool:
     return True
 
 
-async def validate_discord(discord: str) -> bool:
+async def validate_discord(discord: str):
     discord = discord.removeprefix("@")
     if discord == ("UserName#0000" or "NULL"):
+        # return default discord or Null as None
         return None
-    if not re.fullmatch("^[\w]{1,32}#[0-9]{4}", discord):
+
+    if not re.fullmatch("^[\w ]{1,32}#[0-9]{4}", discord):
+
+        # check if UserName0001 => UserName#0001
+        if re.fullmatch("^[\w ]{1,32}[0-9]{4}$", discord):
+            discord = discord[:-4] + "#" + discord[-4:]
+            return discord
         raise HTTPException(status_code=202, detail=f"bad discord")
+
+    # return UserName#0001 ==> @UserName#0001
     return discord
 
 
