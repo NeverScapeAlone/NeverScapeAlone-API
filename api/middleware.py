@@ -17,7 +17,6 @@ async def request_handler(request: Request, call_next):
     response = await redis_ratelimit(request=request)
     if response is not None:
         return response
-
     response = await process_request(request=request, call_next=call_next)
     return response
 
