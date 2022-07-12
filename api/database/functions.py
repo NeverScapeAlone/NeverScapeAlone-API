@@ -240,20 +240,18 @@ async def is_valid_rsn(login: str) -> bool:
 
 async def validate_discord(discord: str):
     discord = discord.removeprefix("@")
+
     if discord == ("UserName#0000" or "NULL"):
-        # return default discord or Null as None
         return None
 
-    if not re.fullmatch("^[\w ]{1,32}#[0-9]{4}", discord):
-
-        # check if UserName0001 => UserName#0001
-        if re.fullmatch("^[\w ]{1,32}[0-9]{4}$", discord):
+    if re.fullmatch(".*[0-9]{4}$", discord):
+        if discord[-5] != "#":
             discord = discord[:-4] + "#" + discord[-4:]
-            return discord
-        raise HTTPException(status_code=202, detail=f"bad discord")
 
-    # return UserName#0001 ==> @UserName#0001
-    return discord
+    if len(discord[:-5]) >= 1 & len(discord[:-5]) <= 32:
+        return discord
+
+    raise HTTPException(status_code=202, detail=f"bad discord")
 
 
 async def verify_token_construction(token: str) -> bool:
