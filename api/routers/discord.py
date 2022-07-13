@@ -8,6 +8,7 @@ from pstats import Stats
 from typing import Optional
 
 import api.config as config
+import pandas as pd
 from api.database.functions import (
     USERDATA_ENGINE,
     is_valid_rsn,
@@ -100,6 +101,42 @@ async def verify_discord_account(login: str, discord: str, token: str) -> json:
             detail=f"verified",
         )
     return
+
+
+@router.get("/V1/discord/get-active-queues", tags=["discord"])
+async def get_active_queues(token: str) -> json:
+    if token != config.DISCORD_TOKEN:
+        raise HTTPException(
+            status_code=202,
+            detail=f"bad token",
+        )
+        return
+
+    table = UserQueue
+    sql = select(table)
+    sql = sql.where(table.in_queue == 1)
+
+    async with USERDATA_ENGINE.get_session() as session:
+        session: AsyncSession = session
+        async with session.begin():
+            data = await session.execute(sql)
+
+    data = sqlalchemy_result(data).rows2dict()
+    if len(data) == 0:
+        raise HTTPException(
+            status_code=202,
+            detail=f"no information",
+        )
+        return
+
+    df = pd.DataFrame(data)
+    values = df.activity.value_counts()
+    idxs = [idx for idx in values.index]
+    vals = [str(val) for val in values.values]
+    d = dict(zip(idxs, vals))
+    response = json.dumps(d)
+    response = json.loads(response)
+    return response
 
 
 @router.get("/V1/discord/get-active-matches", tags=["discord"])
