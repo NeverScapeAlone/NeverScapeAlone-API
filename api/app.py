@@ -26,15 +26,9 @@ logger = logging.getLogger(__name__)
 @repeat_every(seconds=5, wait_first=True, raise_exceptions=True)
 async def automated_tasks():
     try:
-        # Get WDR, RuneWatch and RuneLite data
-
         await functions.post_worlds()
-
-        # Clean old matches
         await functions.automatic_user_queue_cleanup()
-        # Build matchmaking parties
         await matchmaking.build_matchmaking_parties()
-        # Clean old active matches
         await functions.automatic_user_active_matches_cleanup()
 
         logger.info(f"Automated tasks finished.")
