@@ -26,7 +26,7 @@ from api.database.models import (
 )
 from fastapi import HTTPException, Request
 from pydantic import BaseModel
-from sqlalchemy import Text, text
+from sqlalchemy import Text, text, or_
 from sqlalchemy.exc import InternalError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncResult, AsyncSession
 from sqlalchemy.sql import case, text
@@ -57,8 +57,10 @@ async def automatic_user_queue_cleanup():
     table = UserQueue
     sql = delete(table)
     sql = sql.where(
-        (table.in_queue == 0)
-        or (table.timestamp <= datetime.utcnow() - timedelta(minutes=360))
+        or_(
+            table.in_queue == 0,
+            table.timestamp <= datetime.utcnow() - timedelta(minutes=360),
+        )
     )
     sql = sql.prefix_with("ignore")
 
