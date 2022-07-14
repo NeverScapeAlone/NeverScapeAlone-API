@@ -3,28 +3,20 @@ import json
 import logging
 import random
 import re
-import time
 import traceback
-from unicodedata import name
 from api.config import redis_client
 from asyncio.tasks import create_task
 from collections import namedtuple
 from datetime import datetime, timedelta
-from dis import disco
 from typing import List, Optional
-from mysqlx import UpdateStatement
 
 import pandas as pd
-import requests
 from api.database.database import USERDATA_ENGINE, Engine, EngineType
 from api.database.models import (
-    ActiveMatches,
-    UserQueue,
     Users,
     UserToken,
-    WorldInformation,
 )
-from fastapi import HTTPException, Request
+from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import Text, text, or_
 from sqlalchemy.exc import InternalError, OperationalError
@@ -51,175 +43,6 @@ class userBanUpdate(BaseModel):
     login: str
     wdr: Optional[str]
     runewatch: Optional[str]
-
-
-async def automatic_user_queue_cleanup():
-    table = UserQueue
-    sql = delete(table)
-    sql = sql.where(
-        or_(
-            table.in_queue == 0,
-            table.timestamp <= datetime.utcnow() - timedelta(minutes=360),
-        )
-    )
-    sql = sql.prefix_with("ignore")
-
-    async with USERDATA_ENGINE.get_session() as session:
-        session: AsyncSession = session
-        async with session.begin():
-            await session.execute(sql)
-
-
-async def automatic_user_active_matches_cleanup():
-    table = ActiveMatches
-    sql = delete(table)
-    sql = sql.where(table.timestamp <= datetime.utcnow() - timedelta(minutes=60))
-    sql = sql.where(table.has_accepted == 0)
-    sql = sql.prefix_with("ignore")
-
-    async with USERDATA_ENGINE.get_session() as session:
-        session: AsyncSession = session
-        async with session.begin():
-            await session.execute(sql)
-
-
-async def get_wdr_bans():
-    data = requests.get("https://wdrdev.github.io/banlist.json")
-    json_array = json.loads(data.content)
-
-    payload_list = []
-    for json_data in json_array:
-        login = "'" + json_data["CURRENT RSN"] + "'"
-        wdr = "'" + json_data["Category"].replace("'", "") + "'"
-        s = "(" + login + "," + wdr + ")"
-        payload_list.append(s)
-
-    sql = text(
-        f"""INSERT INTO users (login, wdr) VALUES {", ".join(payload_list)} ON DUPLICATE KEY UPDATE wdr = VALUES(wdr);"""
-    )
-
-    async with USERDATA_ENGINE.get_session() as session:
-        session: AsyncSession = session
-        async with session.begin():
-            await session.execute(sql)
-
-
-async def get_runewatch_bans():
-    data = requests.get("https://runewatch.com/api/v2/rsn")
-    json_nested = json.loads(data.content)
-
-    payload_list = []
-    for group in json_nested:
-        array_payload = json_nested[group][0]
-        login = "'" + array_payload["rsn"].replace("'", "") + "'"
-        runewatch = "'" + array_payload["type"].replace("'", "") + "'"
-        s = "(" + login + "," + runewatch + ")"
-        payload_list.append(s)
-
-    sql = text(
-        f"""INSERT INTO users (login, runewatch) VALUES {", ".join(payload_list)} ON DUPLICATE KEY UPDATE runewatch = VALUES(runewatch);"""
-    )
-
-    async with USERDATA_ENGINE.get_session() as session:
-        session: AsyncSession = session
-        async with session.begin():
-            await session.execute(sql)
-
-
-async def post_worlds():
-
-    table = WorldInformation
-    sql = select(table)
-
-    async with USERDATA_ENGINE.get_session() as session:
-        session: AsyncSession = session
-        async with session.begin():
-            data = await session.execute(sql)
-
-    payload = sqlalchemy_result(data).rows2dict()
-    if len(payload) == 0:
-        await update_world_information()
-        return
-
-    if pd.DataFrame(payload).timestamp.max() <= datetime.utcnow() - timedelta(
-        minutes=30
-    ):
-        sql = text("TRUNCATE TABLE world_information")
-        async with USERDATA_ENGINE.get_session() as session:
-            session: AsyncSession = session
-            async with session.begin():
-                await session.execute(sql)
-        await update_world_information()
-    return
-
-
-async def update_world_information():
-    table = WorldInformation
-
-    version = await get_runelite_version()
-    world_data = await get_world_data(version)
-    worlds = await world_data_conversion(world_data)
-    sql = insert(table).values(worlds)
-
-    async with USERDATA_ENGINE.get_session() as session:
-        session: AsyncSession = session
-        async with session.begin():
-            await session.execute(sql)
-
-
-async def get_runelite_version():
-    """
-    Obtains the most up to date RuneLite version
-    """
-    runelite_version_url = "https://static.runelite.net/bootstrap.json"
-    version_data = requests.get(runelite_version_url)
-    version = json.loads(version_data.text)["artifacts"][0]["diffs"][0]["name"]
-    version = version.removeprefix("client-").removesuffix(".jar")
-    return version
-
-
-async def get_world_data(version) -> dict:
-    world_data_url = f"https://api.runelite.net/runelite-{version}/worlds.js"
-    world_data = requests.get(world_data_url)
-    world_data = json.loads(world_data.text)
-    return world_data
-
-
-async def world_data_conversion(world_data):
-    cleaned_worlds = list()
-    for world in world_data["worlds"]:
-        if "SKILL_TOTAL" in world["types"]:
-            continue
-        p2p = f2p = us = eu_west = eu_central = oceania = 0
-
-        if "MEMBERS" in world["types"]:
-            p2p = 1
-        else:
-            f2p = 1
-
-        location = world["location"]
-        if location == 0:
-            us = 1
-        if location == 1:
-            eu_west = 1
-        if location == 3:
-            oceania = 1
-        if location == 7:
-            eu_central = 1
-
-        world_information = world_loader(
-            world_number=world["id"],
-            activity=world["activity"],
-            p2p=p2p,
-            f2p=f2p,
-            us=us,
-            eu_central=eu_central,
-            eu_west=eu_west,
-            oceania=oceania,
-            player_count=world["players"],
-        )
-        cleaned_worlds.append(world_information.dict())
-    return cleaned_worlds
 
 
 async def verify_user_agent(user_agent):

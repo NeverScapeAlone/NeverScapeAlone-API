@@ -1,4 +1,4 @@
-## setup
+## setup OR run `venv.bat`
 ```
 python -m venv venv
 venv\Scripts\activate
