@@ -1,4 +1,5 @@
 from sqlalchemy import true
+import api.middleware
 from api.config import app, redis_client
 from api.routers import (
     matchmaking,
