@@ -12,6 +12,7 @@ from typing import Optional
 from urllib.request import Request
 from xmlrpc.client import Boolean, boolean
 
+from api.config import redis_client
 from api.database.functions import (
     USERDATA_ENGINE,
     EngineType,
@@ -97,7 +98,6 @@ async def post_user_queue_start(
     )
 
     incoming_content = user_options.Payload
-    values = []
     for activities in incoming_content:
         value = input_values(
             user_id=user_id,
@@ -113,15 +113,9 @@ async def post_user_queue_start(
             f2p=activities.configuration.f2p,
             p2p=activities.configuration.p2p,
         )
-        values.append(value.dict())
 
-    table = UserQueue
-    sql = insert(table).values(values).prefix_with("ignore")
-
-    async with USERDATA_ENGINE.get_session() as session:
-        session: AsyncSession = session
-        async with session.begin():
-            await session.execute(sql)
+        key = f"queue:{user_id}:{activities.activity}"
+        await redis_client.set(name=key, value=str(value.dict()), ex=21600)
 
     return {"detail": "queue started"}
 
@@ -140,23 +134,12 @@ async def get_user_queue_cancel(
     user_id = await verify_token(
         login=login, discord=discord, token=token, access_level=0
     )
-    UserQueue_table = UserQueue
-    ActiveMatches_table = ActiveMatches
 
-    UserQueue_sql = (
-        update(UserQueue_table)
-        .where(UserQueue_table.user_id == user_id)
-        .values(in_queue=False)
-    )
-    ActiveMatches_sql = delete(ActiveMatches_table).where(
-        ActiveMatches_table.user_id == user_id
-    )
-
-    async with USERDATA_ENGINE.get_session() as session:
-        session: AsyncSession = session
-        async with session.begin():
-            await session.execute(UserQueue_sql)
-            await session.execute(ActiveMatches_sql)
+    queue_keys = await redis_client.keys(f"queue:{user_id}:*")
+    active_matches_keys = await redis_client.keys(f"active_matches:{user_id}:*")
+    keys = queue_keys + active_matches_keys
+    if keys:
+        await redis_client.delete(*keys)
 
     if route_type == "end session":
         return {"detail": "match ended"}
