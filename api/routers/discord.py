@@ -8,12 +8,14 @@ from pstats import Stats
 from typing import Optional
 
 import api.config as config
+from api.config import redis_client
 import pandas as pd
 from api.database.functions import (
     USERDATA_ENGINE,
     is_valid_rsn,
     sqlalchemy_result,
     validate_discord,
+    redis_decode,
 )
 from api.database.models import ActiveMatches, UserQueue, Users, WorldInformation
 from api.routers import user_queue
@@ -112,16 +114,10 @@ async def get_active_queues(token: str) -> json:
         )
         return
 
-    table = UserQueue
-    sql = select(table)
-    sql = sql.where(table.in_queue == 1)
+    keys = await redis_client.keys("queue:*")
+    byte_data = await redis_client.mget(keys=keys)
+    data = await redis_decode(bytes_encoded=byte_data)
 
-    async with USERDATA_ENGINE.get_session() as session:
-        session: AsyncSession = session
-        async with session.begin():
-            data = await session.execute(sql)
-
-    data = sqlalchemy_result(data).rows2dict()
     if len(data) == 0:
         raise HTTPException(
             status_code=202,

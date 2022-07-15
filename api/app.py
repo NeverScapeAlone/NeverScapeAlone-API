@@ -1,4 +1,3 @@
-from sqlalchemy import true
 import api.middleware
 from api.config import app, redis_client
 from api.routers import (
@@ -8,7 +7,9 @@ from api.routers import (
     status,
     discord,
 )
+from api.database.functions import load_redis_from_sql
 import logging
+from fastapi_utils.tasks import repeat_every
 
 app.include_router(discord.router)
 app.include_router(matchmaking.router)
@@ -25,6 +26,12 @@ async def redis_health_check():
         logging.info("REDIS SERVER CONNECTED!")
     else:
         logging.critical("REDIS SERVER IS NOT ACCESSIBLE!")
+
+
+@app.on_event("startup")
+@repeat_every(seconds=5, wait_first=True, raise_exceptions=True)
+async def load_tables_into_redis():
+    await load_redis_from_sql()
 
 
 @app.get("/")

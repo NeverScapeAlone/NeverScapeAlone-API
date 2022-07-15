@@ -4,12 +4,13 @@ import logging
 import random
 import re
 import traceback
-from api.config import redis_client
+from api.config import redis_client, DEV_MODE
 from asyncio.tasks import create_task
 from collections import namedtuple
 from datetime import datetime, timedelta
 from typing import List, Optional
 
+import ast
 import pandas as pd
 from api.database.database import USERDATA_ENGINE, Engine, EngineType
 from api.database.models import (
@@ -45,7 +46,15 @@ class userBanUpdate(BaseModel):
     runewatch: Optional[str]
 
 
+async def redis_decode(bytes_encoded) -> list:
+    if type(bytes_encoded) == list:
+        return [ast.literal_eval(element.decode("utf-8")) for element in bytes_encoded]
+    return [ast.literal_eval(bytes_encoded.decode("utf-8"))]
+
+
 async def verify_user_agent(user_agent):
+    if DEV_MODE == True:
+        return True
     if not re.fullmatch("^RuneLite", user_agent[:8]):
         raise HTTPException(
             status_code=202,
@@ -135,6 +144,25 @@ async def verify_token(login: str, discord: str, token: str, access_level=0) -> 
     """set redis cache"""
     await redis_client.set(name=key, value=user_id, ex=120)
     return user_id
+
+
+async def load_redis_from_sql():
+
+    table = Users
+    sql = select(table)
+    async with USERDATA_ENGINE.get_session() as session:
+        session: AsyncSession = session
+        async with session.begin():
+            data = await session.execute(sql)
+    data = sqlalchemy_result(data).rows2dict()
+
+    mapping = dict()
+    for value in data:
+        user_id = value["user_id"]
+        key = f"user:{user_id}"
+        del value["timestamp"]
+        mapping[key] = str(value)
+    await redis_client.mset(mapping=mapping)
 
 
 async def parse_sql(

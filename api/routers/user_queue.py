@@ -136,7 +136,7 @@ async def get_user_queue_cancel(
     )
 
     queue_keys = await redis_client.keys(f"queue:{user_id}:*")
-    active_matches_keys = await redis_client.keys(f"active_matches:{user_id}:*")
+    active_matches_keys = await redis_client.keys(f"match:{user_id}:*")
     keys = queue_keys + active_matches_keys
     if keys:
         await redis_client.delete(*keys)

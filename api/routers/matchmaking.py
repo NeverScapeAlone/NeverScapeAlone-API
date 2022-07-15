@@ -20,6 +20,7 @@ from api.database.functions import (
     sqlalchemy_result,
     verify_token,
     verify_user_agent,
+    redis_decode,
 )
 from api.config import redis_client, VERSION
 from api.database.models import ActiveMatches, UserQueue, Users, WorldInformation
@@ -65,15 +66,9 @@ async def get_matchmaking_status(
         login=login, discord=discord, token=token, access_level=0
     )
 
-    table = ActiveMatches
-    sql = select(table).where(table.user_id == user_id)
-
-    async with USERDATA_ENGINE.get_session() as session:
-        session: AsyncSession = session
-        async with session.begin():
-            data = await session.execute(sql)
-
-    if len(sqlalchemy_result(data).rows2dict()) == 0:
+    key_pattern = f"match:{user_id}:*"
+    keys = await redis_client.keys(pattern=key_pattern)
+    if not keys:
         return {"detail": "no active matches"}
     return {"detail": "pending matches"}
 
@@ -89,16 +84,10 @@ async def get_matchmaking_status(
         login=login, discord=discord, token=token, access_level=0
     )
 
-    table = ActiveMatches
-    sql_user_actives = select(table).where(table.user_id == user_id)
+    key_pattern = f"match:{user_id}:*"
+    keys = await redis_client.keys(pattern=key_pattern)
 
-    async with USERDATA_ENGINE.get_session() as session:
-        session: AsyncSession = session
-        async with session.begin():
-            data = await session.execute(sql_user_actives)
-
-    data = sqlalchemy_result(data).rows2dict()
-    if len(data) == 0:
+    if len(keys) == 0:
         data_array = []
         temp_dict = dict()
         temp_dict["login"] = "NONE"
@@ -114,43 +103,39 @@ async def get_matchmaking_status(
         data_array.append(temp_dict)
         return data_array
 
-    df = pd.DataFrame(data)
-    party_identifiers = df.party_identifier.unique()
+    key_chain = []
+    for key in keys:
+        key = str(key)
+        party_ID = "*" + key[key.find("PARTY=") :][:-1]
+        sub_keys = await redis_client.keys(pattern=party_ID)
+        key_chain += sub_keys
 
-    sql: Select = select(
-        columns=[
-            Users.login,
-            Users.discord,
-            Users.verified,
-            Users.runewatch,
-            Users.wdr,
-            ActiveMatches.party_identifier,
-            ActiveMatches.has_accepted,
-            ActiveMatches.timestamp,
-            ActiveMatches.discord_invite,
-        ]
-    )
+    byte_data = await redis_client.mget(keys=key_chain)
+    match_data = await redis_decode(bytes_encoded=byte_data)
+    df_match = pd.DataFrame(match_data)
 
-    sql = sql.join(Users, ActiveMatches.user_id == Users.user_id)
-    sql = sql.where(ActiveMatches.party_identifier.in_(party_identifiers))
+    user_ids = df_match.user_id.values
+    ids = [f"user:{user_id}" for user_id in user_ids]
+    byte_data = await redis_client.mget(keys=ids)
+    user_data = await redis_decode(bytes_encoded=byte_data)
+    df_user = pd.DataFrame(user_data)
 
-    async with USERDATA_ENGINE.get_session() as session:
-        session: AsyncSession = session
-        async with session.begin():
-            data = await session.execute(sql)
+    df = pd.merge(df_user, df_match, how="inner", right_on="user_id", left_on="user_id")
 
     cleaned_data = []
-    for c, d in enumerate(data):
+    for index, row in df.iterrows():
         temp_dict = dict()
-        temp_dict["login"] = d[0]
-        temp_dict["discord"] = "NONE" if d[1] is None else str(d[1])
-        temp_dict["verified"] = d[2]
-        temp_dict["runewatch"] = "NONE" if d[3] is None else str(d[3])
-        temp_dict["wdr"] = "NONE" if d[4] is None else str(d[4])
-        temp_dict["party_identifier"] = d[5]
-        temp_dict["has_accepted"] = d[6]
-        temp_dict["timestamp"] = str(int(time.mktime(d[7].timetuple())))
-        temp_dict["discord_invite"] = "NONE" if d[8] is None else str(d[8])
+        temp_dict["login"] = row.login
+        temp_dict["discord"] = "NONE" if row.discord is None else str(row.discord)
+        temp_dict["verified"] = row.verified
+        temp_dict["runewatch"] = "NONE" if row.runewatch is None else str(row.runewatch)
+        temp_dict["wdr"] = "NONE" if row.wdr is None else str(row.wdr)
+        temp_dict["party_identifier"] = row.party_identifier
+        temp_dict["has_accepted"] = row.has_accepted
+        temp_dict["timestamp"] = str(int(time.time()))
+        temp_dict["discord_invite"] = (
+            "NONE" if row.discord_invite is None else str(row.discord_invite)
+        )
         temp_dict["version"] = VERSION
         cleaned_data.append(temp_dict)
 
@@ -185,7 +170,6 @@ async def get_accept_matchmaking_request(
     user_id = await verify_token(
         login=login, discord=discord, token=token, access_level=0
     )
-
     user_id = str(int(user_id))
 
     statement = f"""
