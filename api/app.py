@@ -6,6 +6,7 @@ from api.routers import (
     user_token,
     status,
     discord,
+    websockets,
 )
 from api.database.functions import load_redis_from_sql
 import logging
@@ -16,6 +17,7 @@ app.include_router(matchmaking.router)
 app.include_router(user_token.router)
 app.include_router(user_queue.router)
 app.include_router(status.router)
+app.include_router(websockets.router)
 
 logger = logging.getLogger(__name__)
 
