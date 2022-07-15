@@ -70,7 +70,7 @@ async def get_matchmaking_status(
     keys = await redis_client.keys(pattern=key_pattern)
     if not keys:
         return {"detail": "no active matches"}
-    return {"detail": "pending matches"}
+    return {"detail": "pending matches", "active_matches": keys}
 
 
 @router.get("/V1/matchmaking/get-match-information", tags=["matchmaking"])
