@@ -80,14 +80,16 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-@router.websocket("/V2/lobby/{lobby_id}")
+@router.websocket("/V2/lobby/{group_identifier}")
 async def websocket_endpoint(
-    websocket: WebSocket, lobby_id: int, user_agent: str | None = Header(default=None)
+    websocket: WebSocket,
+    group_identifier: str,
+    user_agent: str | None = Header(default=None),
 ):
     await manager.connect(websocket)
     try:
         while True:
-            data = await websocket.receive_text()
+            data = await websocket.receive_json()
             print(user_agent, data)
             # await manager.send_personal_message(f"You wrote: {data}", websocket)
             # await manager.broadcast(f"Client #{user_agent} says: {data}")
