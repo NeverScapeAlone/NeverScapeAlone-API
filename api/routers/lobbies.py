@@ -17,14 +17,7 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 from api.config import VERSION, redis_client
-from api.database.functions import (
-    USERDATA_ENGINE,
-    EngineType,
-    redis_decode,
-    sqlalchemy_result,
-    verify_token,
-    verify_user_agent,
-)
+from api.database.functions import verify_headers
 from api.database.models import ActiveMatches, UserQueue, Users, WorldInformation
 from api.routers import user_queue
 from certifi import where
@@ -81,19 +74,29 @@ manager = ConnectionManager()
 
 
 @router.websocket("/V2/lobby/{group_identifier}")
-async def websocket_endpoint(
-    websocket: WebSocket,
-    group_identifier: str,
-    user_agent: str | None = Header(default=None),
-):
+async def websocket_endpoint(websocket: WebSocket, group_identifier: str):
     await manager.connect(websocket)
     try:
+        head = websocket.headers
+        user_id = await verify_headers(
+            login=head["Login"],
+            discord=head["Discord"],
+            token=head["Token"],
+            user_agent=head["user-agent"],
+        )
+
+        if user_id is None:
+            await manager.send_personal_message("invalid value", websocket=websocket)
+            manager.disconnect(websocket=websocket)
+
         while True:
-            data = await websocket.receive_json()
-            print(user_agent, data)
-            # await manager.send_personal_message(f"You wrote: {data}", websocket)
-            # await manager.broadcast(f"Client #{user_agent} says: {data}")
+            request = await websocket.receive_json()
+            print(request)
+            match request["detail"]:
+                # default
+                case _:
+                    continue
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-        await manager.broadcast(f"Client #{user_agent} left the chat")
+        await manager.broadcast(f"Client left the chat")

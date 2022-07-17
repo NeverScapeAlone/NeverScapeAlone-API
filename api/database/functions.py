@@ -1,29 +1,50 @@
+import ast
 import asyncio
 import json
 import logging
 import random
 import re
 import traceback
-from api.config import redis_client, DEV_MODE
 from asyncio.tasks import create_task
-from collections import namedtuple
+from atexit import register
+from cgitb import text
+from collections import UserDict, namedtuple
 from datetime import datetime, timedelta
+from optparse import Option
+from pickletools import optimize
+from pstats import Stats
 from typing import List, Optional
+from urllib.request import Request
 
-import ast
 import pandas as pd
+from api.config import DEV_MODE, redis_client
 from api.database.database import USERDATA_ENGINE, Engine, EngineType
-from api.database.models import (
-    Users,
-    UserToken,
-)
-from fastapi import HTTPException
+from api.database.models import Users, UserToken
+from fastapi import APIRouter, Header, HTTPException, Query, status
+from h11 import InformationalResponse
 from pydantic import BaseModel
-from sqlalchemy import Text, text, or_
+from pydantic.fields import Field
+from pymysql import Timestamp
+from pyparsing import Opt
+from requests import request
+from sqlalchemy import (
+    BIGINT,
+    DATETIME,
+    TIMESTAMP,
+    VARCHAR,
+    BigInteger,
+    Text,
+    func,
+    or_,
+    select,
+    text,
+)
+from sqlalchemy.dialects.mysql import Insert
 from sqlalchemy.exc import InternalError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncResult, AsyncSession
+from sqlalchemy.orm import aliased
 from sqlalchemy.sql import case, text
-from sqlalchemy.sql.expression import delete, insert, select, update
+from sqlalchemy.sql.expression import Select, delete, insert, select, update
 
 logger = logging.getLogger(__name__)
 
@@ -56,19 +77,13 @@ async def verify_user_agent(user_agent):
     if DEV_MODE == True:
         return True
     if not re.fullmatch("^RuneLite", user_agent[:8]):
-        raise HTTPException(
-            status_code=202,
-            detail=f"bad header",
-        )
+        return False
     return True
 
 
 async def is_valid_rsn(login: str) -> bool:
     if not re.fullmatch("[\w\d\s_-]{1,12}", login):
-        raise HTTPException(
-            status_code=202,
-            detail=f"bad rsn",
-        )
+        return False
     return True
 
 
@@ -85,25 +100,25 @@ async def validate_discord(discord: str):
     if len(discord[:-5]) >= 1 & len(discord[:-5]) <= 32:
         return discord
 
-    raise HTTPException(status_code=202, detail=f"bad discord")
+    return False
 
 
 async def verify_token_construction(token: str) -> bool:
     if not re.fullmatch("[\w\d\s_-]{32}", token):
-        raise HTTPException(
-            status_code=202,
-            detail=f"bad token",
-        )
+        return False
     return True
 
 
-async def verify_token(login: str, discord: str, token: str, access_level=0) -> int:
+async def verify_headers(login: str, discord: str, token: str, user_agent: str) -> int:
+
+    if not await verify_user_agent(user_agent=user_agent):
+        return None
 
     if not await verify_token_construction(token=token):
-        return
+        return None
 
     if not await is_valid_rsn(login=login):
-        return
+        return None
 
     discord = await validate_discord(discord=discord)
 
@@ -130,19 +145,53 @@ async def verify_token(login: str, discord: str, token: str, access_level=0) -> 
             data = data.rows2dict()
 
     if len(data) == 0:
-        raise HTTPException(status_code=202, detail="registering")
+        user_id = register_user_token(login=login, discord=discord, token=token)
+        if user_id is None:
+            return None
+    else:
+        user_id = data[0]["user_id"]
 
-    auth_level = data[0]["auth_level"]
-    if access_level > auth_level:
-        raise HTTPException(
-            status_code=401,
-            detail=f"Insufficent permissions. You cannot access this content at your auth level.",
-        )
+    await redis_client.set(name=key, value=user_id, ex=120)
+    return user_id
+
+
+async def register_user_token(login: str, discord: str, token: str) -> json:
+    table = Users
+    sql = insert(table).values({"login": login, "discord": discord})
+    sql = sql.prefix_with("ignore")
+
+    sql_update = update(table).where(table.login == login).values(discord=discord)
+
+    async with USERDATA_ENGINE.get_session() as session:
+        session: AsyncSession = session
+        async with session.begin():
+            await session.execute(sql)
+            await session.execute(sql_update)
+
+    sql: Select = select(table).where(table.login == login)
+
+    async with USERDATA_ENGINE.get_session() as session:
+        session: AsyncSession = session
+        async with session.begin():
+            data_get = await session.execute(sql)
+
+    data = sqlalchemy_result(data_get).rows2dict()
+
+    if len(data) == 0:
+        return None
 
     user_id = data[0]["user_id"]
 
-    """set redis cache"""
-    await redis_client.set(name=key, value=user_id, ex=120)
+    table = UserToken
+    values = {"token": token, "user_id": user_id}
+    sql = insert(table).values(values)
+    sql = sql.prefix_with("ignore")
+
+    async with USERDATA_ENGINE.get_session() as session:
+        session: AsyncSession = session
+        async with session.begin():
+            await session.execute(sql)
+
     return user_id
 
 

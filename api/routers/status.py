@@ -9,7 +9,6 @@ from pstats import Stats
 from typing import Optional
 
 from api.config import redis_client
-from api.database.functions import verify_token, verify_user_agent
 from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from h11 import InformationalResponse
 from pydantic import BaseModel
@@ -21,25 +20,6 @@ router = APIRouter()
 
 ONLINE = "alive"
 MAINTENANCE = "maintenance"
-
-
-@router.get("/V1/server-status/", tags=["status"])
-async def get_server_health(
-    login: str,
-    discord: str,
-    token: str,
-    user_agent: str | None = Header(default=None),
-) -> json:
-    """
-    Check server status, chances are -- if you can ping this, you're alive.
-    """
-
-    if not await verify_user_agent(user_agent=user_agent):
-        return
-
-    await verify_token(login=login, discord=discord, token=token, access_level=0)
-
-    return {"detail": ONLINE}
 
 
 @router.get("/V1/server-status/connections", tags=["status"])
