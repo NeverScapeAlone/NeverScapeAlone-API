@@ -195,6 +195,14 @@ async def register_user_token(login: str, discord: str, token: str) -> json:
     return user_id
 
 
+async def sanitize(string: str) -> str:
+    string = re.sub(r"[\W]+", " ", string)
+    string = string.strip()
+    if not string:
+        return None
+    return string
+
+
 async def load_redis_from_sql():
 
     table = Users
