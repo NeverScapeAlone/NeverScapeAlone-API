@@ -200,6 +200,7 @@ async def sanitize(string: str) -> str:
     string = string.strip()
     if not string:
         return None
+    string = string.upper()
     return string
 
 

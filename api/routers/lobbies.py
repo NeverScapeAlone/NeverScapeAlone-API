@@ -68,16 +68,21 @@ class ConnectionManager:
             match_info = match_data[0]
             if match_info["isPrivate"]:
                 if match_info["group_passcode"] != passcode:
-                    await websocket.send_json({"detail": "bad password"})
+                    await websocket.send_json({"detail": "bad passcode"})
                     await websocket.close(code=1000)
 
+        login = websocket.headers["Login"]
         try:
             self.active_connections[group_identifier].append(websocket)
-        except:
+            logging.info(f"{login} > {group_identifier}")
+        except KeyError:
             self.active_connections[group_identifier] = [websocket]
+            logging.info(f"{login} >> {group_identifier}")
 
     def disconnect(self, websocket: WebSocket, group_identifier: str):
         """disconnect user from group"""
+        login = websocket.headers["Login"]
+        logging.info(f"{login} <| {group_identifier}")
         self.active_connections[group_identifier].remove(websocket)
 
     async def broadcast(self, group_identifier: id, payload: json):
@@ -87,6 +92,14 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
+
+
+@router.get("/V2/active-groups")
+async def active_groups():
+    return str(manager.active_connections)
+
+
+## TODO add manager and broadcast, cyclic data send.
 
 
 @router.websocket("/V2/lobby/{group_identifier}/{passcode}")
@@ -117,16 +130,22 @@ async def websocket_endpoint(
         while True:
             request = await websocket.receive_json()
             match request["detail"]:
-                case "Hello!":
-                    await websocket.send_json({"server_message": "Greetings!"})
-
                 case "search_match":
+                    logging.info(f"{login} -> Search")
                     search = await sanitize(request["search"])
                     if not search:
                         continue
-                    # TODO add search request
+                    data = await search_match(search=search)
+                    logging.info(f"{login} <- {data}")
+                    await websocket.send_json(
+                        {
+                            "detail": "search match data",
+                            "search_match_data": data.dict(),
+                        }
+                    )
 
                 case "create_match":
+                    logging.info(f"{login} -> Create Match")
                     initial_match = await create_match(request, user_id, login, discord)
                     key = f"match:ID={initial_match.ID}:ACTIVITY={initial_match.activity}:PRIVATE={initial_match.isPrivate}"
                     await redis_client.set(name=key, value=str(initial_match.dict()))
@@ -137,15 +156,30 @@ async def websocket_endpoint(
                             "passcode": f"{initial_match.group_passcode}",
                         }
                     )
-                    manager.disconnect(
-                        websocket=websocket, group_identifier=group_identifier
-                    )
 
                 case _:
+                    await websocket.send_json({"detail": "successful connection"})
                     continue
 
     except WebSocketDisconnect or ConnectionResetError or ConnectionClosed:
-        manager.disconnect(websocket)
+        manager.disconnect(websocket=websocket, group_identifier=group_identifier)
+
+
+class search_match_info(BaseModel):
+    ID: str
+    activity: str
+    party_members: str
+    isPrivate: bool
+    experience: str
+    split_type: str
+    accounts: str
+    regions: str
+    player_count: str
+    party_leader: str
+
+
+class all_search_match_info(BaseModel):
+    search_matches: List[search_match_info]
 
 
 class stats(BaseModel):
@@ -220,6 +254,38 @@ class match(BaseModel):
     isPrivate: bool
     requirement: requirement
     players: list[player]
+
+
+async def search_match(search: str):
+    keys = await redis_client.keys(f"match:*ACTIVITY={search}*")
+    values = await redis_client.mget(keys)
+    match_data = await redis_decode(values)
+
+    search_matches = []
+    for match in match_data[:50]:
+        requirement = match["requirement"]
+
+        for player in match["players"]:
+            if player["isPartyLeader"] != True:
+                continue
+            party_leader = player["login"]
+
+        val = search_match_info(
+            ID=str(match["ID"]),
+            activity=match["activity"],
+            party_members=match["party_members"],
+            isPrivate=match["isPrivate"],
+            experience=requirement["experience"],
+            split_type=requirement["split_type"],
+            accounts=requirement["accounts"],
+            regions=requirement["regions"],
+            player_count=str(len(match["players"])),
+            party_leader=party_leader,
+        )
+        search_matches.append(val)
+
+    data = all_search_match_info(search_matches=search_matches)
+    return data
 
 
 async def create_match(request, user_id, login, discord):
