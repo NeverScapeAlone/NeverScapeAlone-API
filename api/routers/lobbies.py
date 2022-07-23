@@ -258,11 +258,12 @@ class match(BaseModel):
 
 async def search_match(search: str):
     keys = await redis_client.keys(f"match:*ACTIVITY={search}*")
+    keys = keys[:50]
     values = await redis_client.mget(keys)
     match_data = await redis_decode(values)
 
     search_matches = []
-    for match in match_data[:50]:
+    for match in match_data:
         requirement = match["requirement"]
 
         for player in match["players"]:
