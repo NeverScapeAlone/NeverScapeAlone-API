@@ -6,6 +6,7 @@ import warnings
 
 from dotenv import find_dotenv, load_dotenv
 from fastapi import FastAPI
+from logging.handlers import RotatingFileHandler
 from fastapi.middleware.cors import CORSMiddleware
 import aioredis
 
@@ -16,7 +17,8 @@ DISCORD_TOKEN = os.environ.get("discord_route_token")
 REDIS_PASSWORD = os.environ.get("redis_password")
 RATE_LIMIT_MINUTE = 120
 RATE_LIMIT_HOUR = 7200
-VERSION = "v1.2.1-alpha"
+VERSION = "v2.0.0-alpha"
+DEV_MODE = True
 
 redis_client = aioredis.from_url(
     url="redis://touchgrass.online", port=6379, db=0, password=REDIS_PASSWORD
