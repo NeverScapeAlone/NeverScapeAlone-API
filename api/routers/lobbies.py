@@ -1,6 +1,9 @@
+from cProfile import run
+from cmath import log
 import json
+import sys
 import logging
-from re import sub
+from re import L, sub
 from sys import int_info
 import time
 from ast import Delete
@@ -9,6 +12,7 @@ from datetime import datetime
 from optparse import Option
 from pickletools import optimize
 from pstats import Stats
+from tokenize import group
 from typing import Optional
 from urllib.request import Request
 from fastapi.responses import HTMLResponse
@@ -18,10 +22,15 @@ from xmlrpc.client import Boolean, boolean
 import networkx as nx
 import numpy as np
 import pandas as pd
+from urllib3 import HTTPResponse
 from api.config import VERSION, redis_client
-from api.database.functions import redis_decode, verify_headers, sanitize
+from api.database.functions import (
+    redis_decode,
+    verify_headers,
+    sanitize,
+    websocket_to_user_id,
+)
 from api.database.models import ActiveMatches, UserQueue, Users, WorldInformation
-from api.routers import user_queue
 from certifi import where
 from fastapi import (
     APIRouter,
@@ -41,7 +50,7 @@ from pydantic.fields import Field
 from pymysql import Timestamp
 from pyparsing import Opt
 from requests import delete, options, request, session
-from sqlalchemy import TEXT, TIMESTAMP, select, table, tuple_, values
+from sqlalchemy import TEXT, TIMESTAMP, select, table, true, tuple_, values
 from sqlalchemy.dialects.mysql import Insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -68,27 +77,64 @@ class ConnectionManager:
             match_info = match_data[0]
             if match_info["isPrivate"]:
                 if match_info["group_passcode"] != passcode:
-                    await websocket.send_json({"detail": "bad passcode"})
+                    await websocket.send_json(
+                        {
+                            "detail": "global message",
+                            "server_message": {"message": "Incorrect Passcode"},
+                        }
+                    )
                     await websocket.close(code=1000)
+                    return
 
         login = websocket.headers["Login"]
         try:
             self.active_connections[group_identifier].append(websocket)
-            logging.info(f"{login} > {group_identifier}")
+            logging.info(f"{login} >> {group_identifier}")
         except KeyError:
             self.active_connections[group_identifier] = [websocket]
-            logging.info(f"{login} >> {group_identifier}")
+            logging.info(f"{login} > {group_identifier}")
 
-    def disconnect(self, websocket: WebSocket, group_identifier: str):
-        """disconnect user from group"""
+    async def disconnect(self, websocket: WebSocket, group_identifier: str):
+        """disconnect user"""
         login = websocket.headers["Login"]
-        logging.info(f"{login} <| {group_identifier}")
+        user_id = await websocket_to_user_id(websocket=websocket)
         self.active_connections[group_identifier].remove(websocket)
 
+        if group_identifier != "0":
+            key = f"match:ID={group_identifier}*"
+            matches = await redis_client.keys(key)
+            match_key = matches[0]
+            raw_data = await redis_client.get(match_key)
+            data = await redis_decode(bytes_encoded=raw_data)
+            m = match.parse_obj(data[0])
+            for idx, player in enumerate(m.players):
+                if player.user_id == user_id:
+                    m.players.remove(player)
+
+            if not self.active_connections[group_identifier]:
+                del self.active_connections[group_identifier]
+            if not m.players:
+                await redis_client.delete(match_key)
+                logging.info(f"{login} < {group_identifier}")
+                return
+            await redis_client.set(name=match_key, value=str(m.dict()))
+
+        logging.info(f"{login} << {group_identifier}")
+
     async def broadcast(self, group_identifier: id, payload: json):
-        """broadcast info to group"""
+        """send message to all clients in group"""
         for connection in self.active_connections[group_identifier]:
             await connection.send_json(payload)
+
+    async def global_broadcast(self, message: str):
+        """send message to all clients on list"""
+        payload = {"detail": "global message", "server_message": {"message": message}}
+        keys = list(self.active_connections.keys())
+        for group_id in keys:
+            if group_id != "0":
+                for connection in self.active_connections[group_id]:
+                    await connection.send_json(payload)
+        return {"detail": "sent"}
 
 
 manager = ConnectionManager()
@@ -99,7 +145,9 @@ async def active_groups():
     return str(manager.active_connections)
 
 
-## TODO add manager and broadcast, cyclic data send.
+@router.get("/V2/global-message")
+async def global_message(message):
+    await manager.global_broadcast(message=message)
 
 
 @router.websocket("/V2/lobby/{group_identifier}/{passcode}")
@@ -110,25 +158,28 @@ async def websocket_endpoint(
         websocket=websocket, group_identifier=group_identifier, passcode=passcode
     )
     try:
-        head = websocket.headers
-        login = head["Login"]
-        discord = head["Discord"]
-        token = head["Token"]
-        user_agent = head["user-agent"]
-
-        user_id = await verify_headers(
-            login=login,
-            discord=discord,
-            token=token,
-            user_agent=user_agent,
-        )
+        user_id = await websocket_to_user_id(websocket=websocket)
+        login = websocket.headers["Login"]
+        discord = websocket.headers["Discord"]
 
         if user_id is None:
-            await websocket.send_json({"detail": "disconnected"})
-            manager.disconnect(websocket=websocket, group_identifier=group_identifier)
+            await websocket.send_json(
+                {
+                    "detail": "global message",
+                    "server_message": {"message": "You have been disconnected"},
+                }
+            )
+            await manager.disconnect(
+                websocket=websocket, group_identifier=group_identifier
+            )
 
         while True:
-            request = await websocket.receive_json()
+            try:
+                request = await websocket.receive_json()
+            except AssertionError:
+                logging.info(f"{login} >| {group_identifier}")
+                break
+
             match request["detail"]:
                 case "search_match":
                     logging.info(f"{login} -> Search")
@@ -136,7 +187,7 @@ async def websocket_endpoint(
                     if not search:
                         continue
                     data = await search_match(search=search)
-                    logging.info(f"{login} <- {data}")
+                    logging.info(f"{login} <- Search")
                     await websocket.send_json(
                         {
                             "detail": "search match data",
@@ -157,12 +208,56 @@ async def websocket_endpoint(
                         }
                     )
 
+                case "set_status":
+                    if group_identifier == "0":
+                        continue
+
+                    logging.info(f"{login} ->> Set Status")
+                    status_val = status.parse_obj(request["status"])
+                    key = f"match:ID={group_identifier}*"
+                    matches = await redis_client.keys(key)
+                    match_key = matches[0]
+                    raw_data = await redis_client.get(match_key)
+                    data = await redis_decode(bytes_encoded=raw_data)
+                    data = data[0]
+                    m = match.parse_obj(data)
+                    i = 0
+                    players = m.players
+                    for idx, player in enumerate(players):
+                        if player.user_id == user_id:
+                            i = idx
+                    m.players[i].status = status_val
+
+                    await redis_client.set(name=match_key, value=str(m.dict()))
+
+                    payload = {"detail": "match update", "match_data": m.dict()}
+
+                    await manager.broadcast(
+                        group_identifier=group_identifier, payload=payload
+                    )
+
+                    continue
+
+                case "check_connection":
+                    if group_identifier == "0":
+                        continue
+
+                    pattern = f"match:ID={group_identifier}*"
+                    keys = await redis_client.keys(pattern=pattern)
+                    data = await redis_client.mget(keys=keys)
+                    data = await redis_decode(bytes_encoded=data)
+                    data = data[0]
+
+                    await websocket.send_json(
+                        {"detail": "successful connection", "match_data": data}
+                    )
+                    continue
+
                 case _:
-                    await websocket.send_json({"detail": "successful connection"})
                     continue
 
     except WebSocketDisconnect or ConnectionResetError or ConnectionClosed:
-        manager.disconnect(websocket=websocket, group_identifier=group_identifier)
+        await manager.disconnect(websocket=websocket, group_identifier=group_identifier)
 
 
 class search_match_info(BaseModel):
@@ -193,7 +288,7 @@ class stats(BaseModel):
     magic: int
     runecraft: int
     construction: int
-    hp: int
+    hitpoints: int
     agility: int
     herblore: int
     thieving: int
@@ -214,16 +309,16 @@ class status(BaseModel):
     """player status"""
 
     hp: int
+    base_hp: int
     prayer: int
+    base_prayer: int
     run_energy: int
-    special_attack: int
-    overhead_prayer: str
 
 
 class player(BaseModel):
     """player model"""
 
-    discord: Optional[str]
+    discord: str
     stats: Optional[stats]
     status: Optional[status]
     runewatch: Optional[str]
@@ -284,7 +379,6 @@ async def search_match(search: str):
             party_leader=party_leader,
         )
         search_matches.append(val)
-
     data = all_search_match_info(search_matches=search_matches)
     return data
 

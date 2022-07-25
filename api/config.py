@@ -6,6 +6,7 @@ import warnings
 
 from dotenv import find_dotenv, load_dotenv
 from fastapi import FastAPI
+from logging.handlers import RotatingFileHandler
 from fastapi.middleware.cors import CORSMiddleware
 import aioredis
 

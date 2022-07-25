@@ -196,12 +196,27 @@ async def register_user_token(login: str, discord: str, token: str) -> json:
 
 
 async def sanitize(string: str) -> str:
-    string = re.sub(r"[\W]+", " ", string)
     string = string.strip()
     if not string:
         return None
     string = string.upper()
     return string
+
+
+async def websocket_to_user_id(websocket):
+    head = websocket.headers
+    login = head["Login"]
+    discord = head["Discord"]
+    token = head["Token"]
+    user_agent = head["user-agent"]
+
+    user_id = await verify_headers(
+        login=login,
+        discord=discord,
+        token=token,
+        user_agent=user_agent,
+    )
+    return user_id
 
 
 async def load_redis_from_sql():

@@ -21,7 +21,6 @@ router = APIRouter()
 ONLINE = "alive"
 MAINTENANCE = "maintenance"
 
-
 @router.get("/V1/server-status/connections", tags=["status"])
 async def get_server_health() -> json:
     """
@@ -37,7 +36,6 @@ async def get_server_health() -> json:
         "hour_connections": hour_connections_count,
         "time": time.time(),
     }
-
 
 @router.get("/V1/server-status/echo", tags=["status"])
 async def echo(
