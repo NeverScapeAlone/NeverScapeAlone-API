@@ -1,33 +1,31 @@
-from cProfile import run
-from cmath import log
 import json
-import sys
 import logging
-from re import L, sub
-from sys import int_info
+import random
+import sys
 import time
 from ast import Delete
+from cmath import log
+from cProfile import run
 from dataclasses import replace
 from datetime import datetime
 from optparse import Option
 from pickletools import optimize
 from pstats import Stats
+from re import L, sub
+from sys import int_info
 from tokenize import group
-from typing import Optional
+from typing import List, Optional
 from urllib.request import Request
-from fastapi.responses import HTMLResponse
-from typing import List
 from xmlrpc.client import Boolean, boolean
 
 import networkx as nx
 import numpy as np
 import pandas as pd
-from urllib3 import HTTPResponse
 from api.config import VERSION, redis_client
 from api.database.functions import (
     redis_decode,
-    verify_headers,
     sanitize,
+    verify_headers,
     websocket_to_user_id,
 )
 from api.database.models import ActiveMatches, UserQueue, Users, WorldInformation
@@ -39,9 +37,10 @@ from fastapi import (
     Query,
     Request,
     WebSocket,
-    status,
     WebSocketDisconnect,
+    status,
 )
+from fastapi.responses import HTMLResponse
 from fastapi_utils.tasks import repeat_every
 from h11 import ConnectionClosed, InformationalResponse
 from networkx.algorithms.community import greedy_modularity_communities
@@ -56,6 +55,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql import case, text
 from sqlalchemy.sql.expression import Select, insert, select, update
+from urllib3 import HTTPResponse
 
 logger = logging.getLogger(__name__)
 
@@ -100,24 +100,24 @@ class ConnectionManager:
         user_id = await websocket_to_user_id(websocket=websocket)
         self.active_connections[group_identifier].remove(websocket)
 
-        if group_identifier != "0":
-            key = f"match:ID={group_identifier}*"
-            matches = await redis_client.keys(key)
-            match_key = matches[0]
-            raw_data = await redis_client.get(match_key)
-            data = await redis_decode(bytes_encoded=raw_data)
-            m = match.parse_obj(data[0])
-            for idx, player in enumerate(m.players):
-                if player.user_id == user_id:
-                    m.players.remove(player)
+        # if group_identifier != "0":
+        #     key = f"match:ID={group_identifier}*"
+        #     matches = await redis_client.keys(key)
+        #     match_key = matches[0]
+        #     raw_data = await redis_client.get(match_key)
+        #     data = await redis_decode(bytes_encoded=raw_data)
+        #     m = match.parse_obj(data[0])
+        #     for idx, player in enumerate(m.players):
+        #         if player.user_id == user_id:
+        #             m.players.remove(player)
 
-            if not self.active_connections[group_identifier]:
-                del self.active_connections[group_identifier]
-            if not m.players:
-                await redis_client.delete(match_key)
-                logging.info(f"{login} < {group_identifier}")
-                return
-            await redis_client.set(name=match_key, value=str(m.dict()))
+        #     if not self.active_connections[group_identifier]:
+        #         del self.active_connections[group_identifier]
+        #     if not m.players:
+        #         await redis_client.delete(match_key)
+        #         logging.info(f"{login} < {group_identifier}")
+        #         return
+        #     await redis_client.set(name=match_key, value=str(m.dict()))
 
         logging.info(f"{login} << {group_identifier}")
 
@@ -138,16 +138,6 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
-
-
-@router.get("/V2/active-groups")
-async def active_groups():
-    return str(manager.active_connections)
-
-
-@router.get("/V2/global-message")
-async def global_message(message):
-    await manager.global_broadcast(message=message)
 
 
 @router.websocket("/V2/lobby/{group_identifier}/{passcode}")
@@ -181,6 +171,7 @@ async def websocket_endpoint(
                 break
 
             match request["detail"]:
+
                 case "search_match":
                     logging.info(f"{login} -> Search")
                     search = await sanitize(request["search"])
@@ -192,6 +183,31 @@ async def websocket_endpoint(
                         {
                             "detail": "search match data",
                             "search_match_data": data.dict(),
+                        }
+                    )
+
+                case "quick_match":
+                    logging.info(f"{login} -> Quick")
+                    match_list = request["match_list"]
+                    key_chain = []
+                    for activity in match_list:
+                        keys = await redis_client.keys(
+                            f"match:*ACTIVITY={activity}:PRIVATE=False"
+                        )
+                        if keys:
+                            key_chain.append(keys)
+
+                    flat_keys = [key for keys in key_chain for key in keys]
+                    match = random.choice(flat_keys)
+                    match = match.decode("utf-8")
+                    start = match.find("ID=")
+                    end = match.find(":ACTIVITY")
+                    match_id = match[start + len("ID=") : end]
+                    await websocket.send_json(
+                        {
+                            "detail": "request join new match",
+                            "join": f"{match_id}",
+                            "passcode": "0",
                         }
                     )
 
