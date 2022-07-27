@@ -1,21 +1,52 @@
+import json
+import logging
+import random
+import sys
+import time
+from ast import Delete
+from cmath import log
+from cProfile import run
+from dataclasses import replace
 from datetime import datetime
 from email.policy import default
-from typing import Text
-from numpy import integer
+from multiprocessing.sharedctypes import Value
+from optparse import Option
+from pickletools import optimize
+from pstats import Stats
+from re import L, sub
+from sys import int_info
+from tokenize import group
+from typing import List, Optional, Text
+from urllib.request import Request
+from xmlrpc.client import Boolean, boolean
+
+import networkx as nx
+import numpy as np
+import pandas as pd
+from certifi import where
+from fastapi.responses import HTMLResponse
+from h11 import ConnectionClosed, InformationalResponse
+from pydantic import BaseModel
+from pyparsing import Opt
 from sqlalchemy import (
     INTEGER,
+    TEXT,
     TIMESTAMP,
     VARCHAR,
     BigInteger,
     Column,
     ForeignKey,
-    Boolean,
     Integer,
+    Boolean,
 )
-from sqlalchemy.dialects.mysql import TEXT, TINYINT, VARCHAR
+from sqlalchemy.dialects.mysql import TEXT, TINYINT, VARCHAR, Insert
 from sqlalchemy.dialects.mysql.types import TINYTEXT
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import aliased, relationship
+from sqlalchemy.sql import case, text
+from sqlalchemy.sql.expression import Select, insert, select, update
+from urllib3 import HTTPResponse
 
 # generated with sqlacodegen
 Base = declarative_base()
@@ -116,3 +147,94 @@ class WorldInformation(Base):
     f2p = Column(Boolean, unique=False, default=False)
     p2p = Column(Boolean, unique=False, default=False)
     player_count = Column(Integer)
+
+
+class search_match_info(BaseModel):
+    ID: str
+    activity: str
+    party_members: str
+    isPrivate: bool
+    experience: str
+    split_type: str
+    accounts: str
+    regions: str
+    player_count: str
+    party_leader: str
+
+
+class all_search_match_info(BaseModel):
+    search_matches: List[search_match_info]
+
+
+class stats(BaseModel):
+    """player skills"""
+
+    attack: int
+    strength: int
+    defense: int
+    ranged: int
+    prayer: int
+    magic: int
+    runecraft: int
+    construction: int
+    hitpoints: int
+    agility: int
+    herblore: int
+    thieving: int
+    crafting: int
+    fletching: int
+    slayer: int
+    hunter: int
+    mining: int
+    smithing: int
+    fishing: int
+    cooking: int
+    firemaking: int
+    woodcutting: int
+    farming: int
+
+
+class status(BaseModel):
+    """player status"""
+
+    hp: int
+    base_hp: int
+    prayer: int
+    base_prayer: int
+    run_energy: int
+
+
+class player(BaseModel):
+    """player model"""
+
+    discord: str
+    stats: Optional[stats]
+    status: Optional[status]
+    runewatch: Optional[str]
+    wdr: Optional[str]
+    verified: Optional[bool]
+    user_id: int
+    login: str
+    isPartyLeader: bool
+
+
+class requirement(BaseModel):
+    """match requirements"""
+
+    experience: str
+    split_type: str
+    accounts: str
+    regions: str
+
+
+class match(BaseModel):
+    """match model"""
+
+    discord_invite: Optional[str]
+    ID: str
+    activity: str
+    party_members: str
+    group_passcode: str
+    isPrivate: bool
+    requirement: requirement
+    players: list[player]

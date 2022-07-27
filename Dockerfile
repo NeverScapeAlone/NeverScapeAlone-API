@@ -3,7 +3,7 @@ FROM python:3.10-slim
 WORKDIR /code
 COPY . /code/
 
-EXPOSE 5000
+EXPOSE 5500
 
 RUN pip install -r requirements.txt
-CMD ["uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "5000"] 
+CMD ["uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "5500"] 
