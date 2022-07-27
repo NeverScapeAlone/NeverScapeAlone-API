@@ -1,22 +1,10 @@
 import json
 import logging
 import random
-import sys
 import time
-from ast import Delete
-from cmath import log
-from cProfile import run
-from dataclasses import replace
-from datetime import datetime
-from optparse import Option
-from pickletools import optimize
 from pstats import Stats
-from re import L, sub
-from sys import int_info
-from tokenize import group
 from typing import List, Optional
 from urllib.request import Request
-from xmlrpc.client import Boolean, boolean
 
 import networkx as nx
 import numpy as np
@@ -25,21 +13,14 @@ from api.config import VERSION, redis_client
 from api.database.functions import (
     redis_decode,
     sanitize,
-    verify_headers,
+    ratelimit,
     websocket_to_user_id,
 )
 from api.database.models import ActiveMatches, UserQueue, Users, WorldInformation
 from certifi import where
-from fastapi import (
-    APIRouter,
-    Header,
-    HTTPException,
-    Query,
-    Request,
-    WebSocket,
-    WebSocketDisconnect,
-    status,
-)
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+import api.database.models as models
+
 from fastapi.responses import HTMLResponse
 from fastapi_utils.tasks import repeat_every
 from h11 import ConnectionClosed, InformationalResponse
@@ -70,6 +51,11 @@ class ConnectionManager:
         """connect user to group"""
         await websocket.accept()
 
+        if not await ratelimit(connecting_IP=websocket.client.host, max_calls_second=5):
+            return
+
+        login = websocket.headers["Login"]
+
         if group_identifier != "0":
             keys = await redis_client.keys(f"match:ID={group_identifier}*")
             values = await redis_client.mget(keys)
@@ -83,10 +69,9 @@ class ConnectionManager:
                             "server_message": {"message": "Incorrect Passcode"},
                         }
                     )
-                    await websocket.close(code=1000)
+                    await websocket.close(code=1001)
                     return
 
-        login = websocket.headers["Login"]
         try:
             self.active_connections[group_identifier].append(websocket)
             logging.info(f"{login} >> {group_identifier}")
@@ -100,24 +85,24 @@ class ConnectionManager:
         user_id = await websocket_to_user_id(websocket=websocket)
         self.active_connections[group_identifier].remove(websocket)
 
-        # if group_identifier != "0":
-        #     key = f"match:ID={group_identifier}*"
-        #     matches = await redis_client.keys(key)
-        #     match_key = matches[0]
-        #     raw_data = await redis_client.get(match_key)
-        #     data = await redis_decode(bytes_encoded=raw_data)
-        #     m = match.parse_obj(data[0])
-        #     for idx, player in enumerate(m.players):
-        #         if player.user_id == user_id:
-        #             m.players.remove(player)
+        if group_identifier != "0":
+            key = f"match:ID={group_identifier}*"
+            matches = await redis_client.keys(key)
+            match_key = matches[0]
+            raw_data = await redis_client.get(match_key)
+            data = await redis_decode(bytes_encoded=raw_data)
+            m = models.match.parse_obj(data[0])
+            for idx, player in enumerate(m.players):
+                if player.user_id == user_id:
+                    m.players.remove(player)
 
-        #     if not self.active_connections[group_identifier]:
-        #         del self.active_connections[group_identifier]
-        #     if not m.players:
-        #         await redis_client.delete(match_key)
-        #         logging.info(f"{login} < {group_identifier}")
-        #         return
-        #     await redis_client.set(name=match_key, value=str(m.dict()))
+            if not self.active_connections[group_identifier]:
+                del self.active_connections[group_identifier]
+            if not m.players:
+                await redis_client.delete(match_key)
+                logging.info(f"{login} < {group_identifier}")
+                return
+            await redis_client.set(name=match_key, value=str(m.dict()))
 
         logging.info(f"{login} << {group_identifier}")
 
@@ -168,11 +153,15 @@ async def websocket_endpoint(
                 request = await websocket.receive_json()
             except AssertionError:
                 logging.info(f"{login} >| {group_identifier}")
-                break
+                continue
 
             match request["detail"]:
 
                 case "search_match":
+                    if not await ratelimit(
+                        connecting_IP=websocket.client.host, max_calls_second=5
+                    ):
+                        continue
                     logging.info(f"{login} -> Search")
                     search = await sanitize(request["search"])
                     if not search:
@@ -187,6 +176,10 @@ async def websocket_endpoint(
                     )
 
                 case "quick_match":
+                    if not await ratelimit(
+                        connecting_IP=websocket.client.host, max_calls_second=5
+                    ):
+                        continue
                     logging.info(f"{login} -> Quick")
                     match_list = request["match_list"]
                     key_chain = []
@@ -212,6 +205,10 @@ async def websocket_endpoint(
                     )
 
                 case "create_match":
+                    if not await ratelimit(
+                        connecting_IP=websocket.client.host, max_calls_second=5
+                    ):
+                        continue
                     logging.info(f"{login} -> Create Match")
                     initial_match = await create_match(request, user_id, login, discord)
                     key = f"match:ID={initial_match.ID}:ACTIVITY={initial_match.activity}:PRIVATE={initial_match.isPrivate}"
@@ -227,16 +224,20 @@ async def websocket_endpoint(
                 case "set_status":
                     if group_identifier == "0":
                         continue
+                    if not await ratelimit(
+                        connecting_IP=websocket.client.host, max_calls_second=10
+                    ):
+                        continue
 
                     logging.info(f"{login} ->> Set Status")
-                    status_val = status.parse_obj(request["status"])
+                    status_val = models.status.parse_obj(request["status"])
                     key = f"match:ID={group_identifier}*"
                     matches = await redis_client.keys(key)
                     match_key = matches[0]
                     raw_data = await redis_client.get(match_key)
                     data = await redis_decode(bytes_encoded=raw_data)
                     data = data[0]
-                    m = match.parse_obj(data)
+                    m = models.match.parse_obj(data)
                     i = 0
                     players = m.players
                     for idx, player in enumerate(players):
@@ -252,10 +253,13 @@ async def websocket_endpoint(
                         group_identifier=group_identifier, payload=payload
                     )
 
-                    continue
-
                 case "check_connection":
                     if group_identifier == "0":
+                        continue
+
+                    if not await ratelimit(
+                        connecting_IP=websocket.client.host, max_calls_second=5
+                    ):
                         continue
 
                     pattern = f"match:ID={group_identifier}*"
@@ -267,104 +271,12 @@ async def websocket_endpoint(
                     await websocket.send_json(
                         {"detail": "successful connection", "match_data": data}
                     )
-                    continue
 
                 case _:
                     continue
 
     except WebSocketDisconnect or ConnectionResetError or ConnectionClosed:
         await manager.disconnect(websocket=websocket, group_identifier=group_identifier)
-
-
-class search_match_info(BaseModel):
-    ID: str
-    activity: str
-    party_members: str
-    isPrivate: bool
-    experience: str
-    split_type: str
-    accounts: str
-    regions: str
-    player_count: str
-    party_leader: str
-
-
-class all_search_match_info(BaseModel):
-    search_matches: List[search_match_info]
-
-
-class stats(BaseModel):
-    """player skills"""
-
-    attack: int
-    strength: int
-    defense: int
-    ranged: int
-    prayer: int
-    magic: int
-    runecraft: int
-    construction: int
-    hitpoints: int
-    agility: int
-    herblore: int
-    thieving: int
-    crafting: int
-    fletching: int
-    slayer: int
-    hunter: int
-    mining: int
-    smithing: int
-    fishing: int
-    cooking: int
-    firemaking: int
-    woodcutting: int
-    farming: int
-
-
-class status(BaseModel):
-    """player status"""
-
-    hp: int
-    base_hp: int
-    prayer: int
-    base_prayer: int
-    run_energy: int
-
-
-class player(BaseModel):
-    """player model"""
-
-    discord: str
-    stats: Optional[stats]
-    status: Optional[status]
-    runewatch: Optional[str]
-    wdr: Optional[str]
-    verified: Optional[bool]
-    user_id: int
-    login: str
-    isPartyLeader: bool
-
-
-class requirement(BaseModel):
-    """match requirements"""
-
-    experience: str
-    split_type: str
-    accounts: str
-    regions: str
-
-
-class match(BaseModel):
-    """match model"""
-
-    discord_invite: Optional[str]
-    ID: str
-    activity: str
-    party_members: str
-    group_passcode: str
-    isPrivate: bool
-    requirement: requirement
-    players: list[player]
 
 
 async def search_match(search: str):
@@ -382,7 +294,7 @@ async def search_match(search: str):
                 continue
             party_leader = player["login"]
 
-        val = search_match_info(
+        val = models.search_match_info(
             ID=str(match["ID"]),
             activity=match["activity"],
             party_members=match["party_members"],
@@ -395,7 +307,7 @@ async def search_match(search: str):
             party_leader=party_leader,
         )
         search_matches.append(val)
-    data = all_search_match_info(search_matches=search_matches)
+    data = models.all_search_match_info(search_matches=search_matches)
     return data
 
 
@@ -412,20 +324,20 @@ async def create_match(request, user_id, login, discord):
     private = False if (len(group_passcode) == 0) else True
     ID = int(time.time() ** 2)
 
-    initial_match = match(
+    initial_match = models.match(
         ID=ID,
         activity=activity,
         party_members=party_members,
         isPrivate=private,
         group_passcode=group_passcode,
-        requirement=requirement(
+        requirement=models.requirement(
             experience=experience,
             split_type=split_type,
             accounts=accounts,
             regions=regions,
         ),
         players=[
-            player(
+            models.player(
                 discord="NONE" if discord is None else discord,
                 isPartyLeader=True,
                 user_id=user_id,

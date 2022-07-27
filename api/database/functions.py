@@ -73,6 +73,54 @@ async def redis_decode(bytes_encoded) -> list:
     return [ast.literal_eval(bytes_encoded.decode("utf-8"))]
 
 
+async def ratelimit(connecting_IP, max_calls_second):
+    """load key formats"""
+    key = f"ratelimit_call:{connecting_IP}"
+    manager_key = f"ratelimit_manager:{connecting_IP}"
+    tally_key = f"ratelimit_tally:{connecting_IP}"
+
+    """ load stopgate for ratelimit tally """
+    tally_data = await redis_client.get(tally_key)
+    if tally_data is not None:
+        # logging.info(f"{connecting_IP} >| Rate: Tally Catch") # No need to print out failed rate limits tbh, just log raises.
+        return False
+
+    """ check current rate """
+    data = await redis_client.get(key)
+    if data is None:
+        """first time in call period, start new key"""
+        await redis_client.set(name=key, value=int(1), ex=1)
+        return True
+
+    if int(data) > max_calls_second:
+        """exceeded per second call rate, elevate to rate manager"""
+        manager_data = await redis_client.get(manager_key)
+        if manager_data is None:
+            """no previously set manager, due to expired watch"""
+            await redis_client.set(name=manager_key, value=int(2), ex=2)
+            await redis_client.set(name=tally_key, value=int(1), ex=1)
+            logging.info(f"{connecting_IP} >| Rate: New Manager")
+            return False
+
+        """ previously known rate manager, advance manager """
+        manager_amount = int(manager_data)
+        manager_amount = manager_amount * 2  # Raise difficulty
+        tally_amount = int(manager_amount / 2)  # Half difficulty for tally amount
+
+        await redis_client.set(
+            name=manager_key, value=manager_amount, ex=manager_amount
+        )
+        await redis_client.set(name=tally_key, value=tally_amount, ex=tally_amount)
+        logging.info(
+            f"{connecting_IP} >| Rate: Manager {manager_amount} & Tally {tally_amount}"
+        )
+        return False
+
+    value = 1 + int(data)
+    await redis_client.set(name=key, value=value, xx=True, keepttl=True)
+    return True
+
+
 async def verify_user_agent(user_agent):
     if DEV_MODE == True:
         return True

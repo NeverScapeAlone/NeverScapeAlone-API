@@ -37,7 +37,6 @@
 
 # router = APIRouter()
 
-
 # @router.get("/V1/discord/verify", tags=["discord"])
 # async def verify_discord_account(login: str, discord: str, token: str) -> json:
 
