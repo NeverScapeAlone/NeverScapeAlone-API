@@ -2,13 +2,7 @@ import json
 import logging
 import random
 import time
-from pstats import Stats
-from typing import List, Optional
-from urllib.request import Request
 
-import networkx as nx
-import numpy as np
-import pandas as pd
 from api.config import VERSION, redis_client
 from api.database.functions import (
     redis_decode,
@@ -16,27 +10,8 @@ from api.database.functions import (
     ratelimit,
     websocket_to_user_id,
 )
-from api.database.models import ActiveMatches, UserQueue, Users, WorldInformation
-from certifi import where
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket
 import api.database.models as models
-
-from fastapi.responses import HTMLResponse
-from fastapi_utils.tasks import repeat_every
-from h11 import ConnectionClosed, InformationalResponse
-from networkx.algorithms.community import greedy_modularity_communities
-from pydantic import BaseModel
-from pydantic.fields import Field
-from pymysql import Timestamp
-from pyparsing import Opt
-from requests import delete, options, request, session
-from sqlalchemy import TEXT, TIMESTAMP, select, table, true, tuple_, values
-from sqlalchemy.dialects.mysql import Insert
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
-from sqlalchemy.sql import case, text
-from sqlalchemy.sql.expression import Select, insert, select, update
-from urllib3 import HTTPResponse
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +26,7 @@ class ConnectionManager:
         """connect user to group"""
         await websocket.accept()
 
-        if not await ratelimit(connecting_IP=websocket.client.host, max_calls_second=5):
+        if not await ratelimit(connecting_IP=websocket.client.host):
             return
 
         login = websocket.headers["Login"]
@@ -157,10 +132,48 @@ async def websocket_endpoint(
 
             match request["detail"]:
 
+                case "player_location":
+                    if not await ratelimit(connecting_IP=websocket.client.host):
+                        continue
+                    if group_identifier == 0:
+                        continue
+                    logging.info(f"{login} ->> Set Location")
+                    location = request["location"]
+                    location = models.location.parse_obj(location)
+
+                    key = f"match:ID={group_identifier}*"
+                    matches = await redis_client.keys(key)
+                    match_key = matches[0]
+                    raw_data = await redis_client.get(match_key)
+                    data = await redis_decode(bytes_encoded=raw_data)
+                    data = data[0]
+                    m = models.match.parse_obj(data)
+                    i = 0
+                    players = m.players
+                    for idx, player in enumerate(players):
+                        if player.user_id == user_id:
+                            i = idx
+                    m.players[i].location = location
+
+                    await redis_client.set(name=match_key, value=str(m.dict()))
+
+                    payload = {"detail": "match update", "match_data": m.dict()}
+
+                    await manager.broadcast(
+                        group_identifier=group_identifier, payload=payload
+                    )
+
+                case "ping":
+                    if group_identifier != 0:
+                        ping_payload = request["ping_payload"]
+                        ping = models.ping.parse_obj(ping_payload).dict()
+                        payload = {"detail": "incoming ping", "ping_data": ping}
+                        await manager.broadcast(
+                            group_identifier=group_identifier, payload=payload
+                        )
+
                 case "search_match":
-                    if not await ratelimit(
-                        connecting_IP=websocket.client.host, max_calls_second=5
-                    ):
+                    if not await ratelimit(connecting_IP=websocket.client.host):
                         continue
                     logging.info(f"{login} -> Search")
                     search = await sanitize(request["search"])
@@ -176,9 +189,7 @@ async def websocket_endpoint(
                     )
 
                 case "quick_match":
-                    if not await ratelimit(
-                        connecting_IP=websocket.client.host, max_calls_second=5
-                    ):
+                    if not await ratelimit(connecting_IP=websocket.client.host):
                         continue
                     logging.info(f"{login} -> Quick")
                     match_list = request["match_list"]
@@ -205,9 +216,7 @@ async def websocket_endpoint(
                     )
 
                 case "create_match":
-                    if not await ratelimit(
-                        connecting_IP=websocket.client.host, max_calls_second=5
-                    ):
+                    if not await ratelimit(connecting_IP=websocket.client.host):
                         continue
                     logging.info(f"{login} -> Create Match")
                     initial_match = await create_match(request, user_id, login, discord)
@@ -224,13 +233,12 @@ async def websocket_endpoint(
                 case "set_status":
                     if group_identifier == "0":
                         continue
-                    if not await ratelimit(
-                        connecting_IP=websocket.client.host, max_calls_second=10
-                    ):
+                    if not await ratelimit(connecting_IP=websocket.client.host):
                         continue
 
                     logging.info(f"{login} ->> Set Status")
                     status_val = models.status.parse_obj(request["status"])
+
                     key = f"match:ID={group_identifier}*"
                     matches = await redis_client.keys(key)
                     match_key = matches[0]
@@ -257,9 +265,7 @@ async def websocket_endpoint(
                     if group_identifier == "0":
                         continue
 
-                    if not await ratelimit(
-                        connecting_IP=websocket.client.host, max_calls_second=5
-                    ):
+                    if not await ratelimit(connecting_IP=websocket.client.host):
                         continue
 
                     pattern = f"match:ID={group_identifier}*"
@@ -275,7 +281,14 @@ async def websocket_endpoint(
                 case _:
                     continue
 
-    except WebSocketDisconnect or ConnectionResetError or ConnectionClosed:
+    except Exception as e:
+        logging.debug(f"{login} => {e}")
+        await websocket.send_json(
+            {
+                "detail": "global message",
+                "server_message": {"message": "An Error Occured."},
+            }
+        )
         await manager.disconnect(websocket=websocket, group_identifier=group_identifier)
 
 

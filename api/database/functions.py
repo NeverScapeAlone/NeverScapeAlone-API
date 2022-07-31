@@ -1,5 +1,6 @@
 import ast
 import asyncio
+from dis import disco
 import json
 import logging
 import random
@@ -73,7 +74,8 @@ async def redis_decode(bytes_encoded) -> list:
     return [ast.literal_eval(bytes_encoded.decode("utf-8"))]
 
 
-async def ratelimit(connecting_IP, max_calls_second):
+async def ratelimit(connecting_IP):
+    MAX_CALLS_SECOND = 10
     """load key formats"""
     key = f"ratelimit_call:{connecting_IP}"
     manager_key = f"ratelimit_manager:{connecting_IP}"
@@ -92,7 +94,7 @@ async def ratelimit(connecting_IP, max_calls_second):
         await redis_client.set(name=key, value=int(1), ex=1)
         return True
 
-    if int(data) > max_calls_second:
+    if int(data) > MAX_CALLS_SECOND:
         """exceeded per second call rate, elevate to rate manager"""
         manager_data = await redis_client.get(manager_key)
         if manager_data is None:
@@ -157,15 +159,32 @@ async def verify_token_construction(token: str) -> bool:
     return True
 
 
-async def verify_headers(login: str, discord: str, token: str, user_agent: str) -> int:
+async def verify_discord_id(discord_id: str) -> bool:
+    if discord_id == "NULL":
+        return True
+    if not re.fullmatch("^[\d]*", discord_id):
+        return False
+    return True
+
+
+async def verify_headers(
+    login: str, discord: str, discord_id: str, token: str, user_agent: str
+) -> int:
 
     if not await verify_user_agent(user_agent=user_agent):
+        logging.warn(f"Bad user agent {user_agent}")
         return None
 
     if not await verify_token_construction(token=token):
+        logging.warn(f"Bad token {token}")
         return None
 
     if not await is_valid_rsn(login=login):
+        logging.warn(f"Bad rsn {login}")
+        return None
+
+    if not await verify_discord_id(discord_id=discord_id):
+        logging.warn(f"Bad discord id {discord_id}")
         return None
 
     discord = await validate_discord(discord=discord)
@@ -173,7 +192,8 @@ async def verify_headers(login: str, discord: str, token: str, user_agent: str) 
     """check redis cache"""
     rlogin = login.replace(" ", "_")
     rdiscord = "None" if discord is None else discord
-    key = f"{rlogin}:{token}:{rdiscord}"
+    rdiscord_id = "None" if discord_id is None else discord_id
+    key = f"{rlogin}:{token}:{rdiscord_id}"
     user_id = await redis_client.get(name=key)
     if user_id is not None:
         user_id = int(user_id)
@@ -183,6 +203,7 @@ async def verify_headers(login: str, discord: str, token: str, user_agent: str) 
     sql = sql.where(UserToken.token == token)
     sql = sql.where(Users.login == login)
     sql = sql.where(Users.discord == discord)
+    sql = sql.where(Users.discord_id == discord_id)
     sql = sql.join(Users, UserToken.user_id == Users.user_id)
 
     async with USERDATA_ENGINE.get_session() as session:
@@ -193,7 +214,9 @@ async def verify_headers(login: str, discord: str, token: str, user_agent: str) 
             data = data.rows2dict()
 
     if len(data) == 0:
-        user_id = register_user_token(login=login, discord=discord, token=token)
+        user_id = await register_user_token(
+            login=login, discord=discord, discord_id=discord_id, token=token
+        )
         if user_id is None:
             return None
     else:
@@ -203,12 +226,16 @@ async def verify_headers(login: str, discord: str, token: str, user_agent: str) 
     return user_id
 
 
-async def register_user_token(login: str, discord: str, token: str) -> json:
+async def register_user_token(
+    login: str, discord: str, discord_id: str, token: str
+) -> json:
     table = Users
-    sql = insert(table).values({"login": login, "discord": discord})
+    sql = insert(table).values(
+        {"login": login, "discord": discord, "discord_id": discord_id}
+    )
     sql = sql.prefix_with("ignore")
 
-    sql_update = update(table).where(table.login == login).values(discord=discord)
+    sql_update = update(table).where(table.login == login).values(discord_id=discord_id)
 
     async with USERDATA_ENGINE.get_session() as session:
         session: AsyncSession = session
@@ -255,12 +282,14 @@ async def websocket_to_user_id(websocket):
     head = websocket.headers
     login = head["Login"]
     discord = head["Discord"]
+    discord_id = head["Discord_ID"]
     token = head["Token"]
     user_agent = head["user-agent"]
 
     user_id = await verify_headers(
         login=login,
         discord=discord,
+        discord_id=discord_id,
         token=token,
         user_agent=user_agent,
     )
