@@ -229,7 +229,7 @@ class player(BaseModel):
     verified: Optional[bool]
     user_id: int
     login: str
-    isPartyLeader: bool
+    isPartyLeader: Optional[bool] = False
 
 
 class requirement(BaseModel):

@@ -2,12 +2,15 @@ import json
 import logging
 import random
 import time
+import traceback
+import sys
 
 from api.config import VERSION, redis_client
 from api.database.functions import (
     redis_decode,
     sanitize,
     ratelimit,
+    user,
     websocket_to_user_id,
 )
 from fastapi import APIRouter, WebSocket
@@ -35,6 +38,14 @@ class ConnectionManager:
             keys = await redis_client.keys(f"match:ID={group_identifier}*")
             values = await redis_client.mget(keys)
             match_data = await redis_decode(bytes_encoded=values)
+            if not match_data:
+                await websocket.send_json(
+                    {
+                        "detail": "global message",
+                        "server_message": {"message": "No Data"},
+                    }
+                )
+                return
             match_info = match_data[0]
             if match_info["isPrivate"]:
                 if match_info["group_passcode"] != passcode:
@@ -58,11 +69,14 @@ class ConnectionManager:
         """disconnect user"""
         login = websocket.headers["Login"]
         user_id = await websocket_to_user_id(websocket=websocket)
+
         self.active_connections[group_identifier].remove(websocket)
 
         if group_identifier != "0":
             key = f"match:ID={group_identifier}*"
             matches = await redis_client.keys(key)
+            if not matches:
+                return
             match_key = matches[0]
             raw_data = await redis_client.get(match_key)
             data = await redis_decode(bytes_encoded=raw_data)
@@ -70,7 +84,6 @@ class ConnectionManager:
             for idx, player in enumerate(m.players):
                 if player.user_id == user_id:
                     m.players.remove(player)
-
             if not self.active_connections[group_identifier]:
                 del self.active_connections[group_identifier]
             if not m.players:
@@ -83,8 +96,9 @@ class ConnectionManager:
 
     async def broadcast(self, group_identifier: id, payload: json):
         """send message to all clients in group"""
-        for connection in self.active_connections[group_identifier]:
-            await connection.send_json(payload)
+        if group_identifier in list(self.active_connections.keys()):
+            for connection in self.active_connections[group_identifier]:
+                await connection.send_json(payload)
 
     async def global_broadcast(self, message: str):
         """send message to all clients on list"""
@@ -109,8 +123,8 @@ async def websocket_endpoint(
     )
     try:
         user_id = await websocket_to_user_id(websocket=websocket)
-        login = websocket.headers["Login"]
-        discord = websocket.headers["Discord"]
+        user_data = await user(user_id)
+        login = user_data["login"]
 
         if user_id is None:
             await websocket.send_json(
@@ -126,9 +140,12 @@ async def websocket_endpoint(
         while True:
             try:
                 request = await websocket.receive_json()
-            except AssertionError:
-                logging.info(f"{login} >| {group_identifier}")
-                continue
+            except Exception as e:
+                logging.debug(f"{login} => {e}")
+                await manager.disconnect(
+                    websocket=websocket, group_identifier=group_identifier
+                )
+                return
 
             match request["detail"]:
 
@@ -143,6 +160,8 @@ async def websocket_endpoint(
 
                     key = f"match:ID={group_identifier}*"
                     matches = await redis_client.keys(key)
+                    if not matches:
+                        break
                     match_key = matches[0]
                     raw_data = await redis_client.get(match_key)
                     data = await redis_decode(bytes_encoded=raw_data)
@@ -200,7 +219,6 @@ async def websocket_endpoint(
                         )
                         if keys:
                             key_chain.append(keys)
-
                     flat_keys = [key for keys in key_chain for key in keys]
                     match = random.choice(flat_keys)
                     match = match.decode("utf-8")
@@ -219,7 +237,7 @@ async def websocket_endpoint(
                     if not await ratelimit(connecting_IP=websocket.client.host):
                         continue
                     logging.info(f"{login} -> Create Match")
-                    initial_match = await create_match(request, user_id, login, discord)
+                    initial_match = await create_match(request, user_data)
                     key = f"match:ID={initial_match.ID}:ACTIVITY={initial_match.activity}:PRIVATE={initial_match.isPrivate}"
                     await redis_client.set(name=key, value=str(initial_match.dict()))
                     await websocket.send_json(
@@ -241,6 +259,8 @@ async def websocket_endpoint(
 
                     key = f"match:ID={group_identifier}*"
                     matches = await redis_client.keys(key)
+                    if not matches:
+                        break
                     match_key = matches[0]
                     raw_data = await redis_client.get(match_key)
                     data = await redis_decode(bytes_encoded=raw_data)
@@ -270,9 +290,23 @@ async def websocket_endpoint(
 
                     pattern = f"match:ID={group_identifier}*"
                     keys = await redis_client.keys(pattern=pattern)
-                    data = await redis_client.mget(keys=keys)
+                    if not keys:
+                        continue
+                    key = keys[0]
+                    data = await redis_client.get(name=key)
                     data = await redis_decode(bytes_encoded=data)
                     data = data[0]
+
+                    m = models.match.parse_obj(data)
+
+                    i = 0
+                    players = m.players
+                    uids = [player.user_id for player in players]
+                    if user_id not in uids:
+                        p = models.player.parse_obj(user_data)
+                        m.players.append(p)
+                        data = m.dict()
+                        await redis_client.set(name=key, value=str(data))
 
                     await websocket.send_json(
                         {"detail": "successful connection", "match_data": data}
@@ -282,13 +316,8 @@ async def websocket_endpoint(
                     continue
 
     except Exception as e:
-        logging.debug(f"{login} => {e}")
-        await websocket.send_json(
-            {
-                "detail": "global message",
-                "server_message": {"message": "An Error Occured."},
-            }
-        )
+        logging.debug(f"{websocket.client.host} => {e}")
+        print(traceback.format_exc())
         await manager.disconnect(websocket=websocket, group_identifier=group_identifier)
 
 
@@ -324,9 +353,15 @@ async def search_match(search: str):
     return data
 
 
-async def create_match(request, user_id, login, discord):
-    sub_payload = request["create_match"]
+async def create_match(request, user_data):
+    discord = user_data["discord"]
+    user_id = user_data["user_id"]
+    verified = user_data["verified"]
+    runewatch = user_data["runewatch"]
+    wdr = user_data["wdr"]
+    login = user_data["login"]
 
+    sub_payload = request["create_match"]
     activity = sub_payload["activity"]
     party_members = sub_payload["party_members"]
     experience = sub_payload["experience"]
@@ -353,8 +388,11 @@ async def create_match(request, user_id, login, discord):
             models.player(
                 discord="NONE" if discord is None else discord,
                 isPartyLeader=True,
+                verified=verified,
                 user_id=user_id,
                 login=login,
+                runewatch=runewatch,
+                wdr=wdr,
             )
         ],
     )

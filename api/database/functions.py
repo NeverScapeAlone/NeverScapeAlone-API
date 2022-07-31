@@ -226,6 +226,36 @@ async def verify_headers(
     return user_id
 
 
+async def user(user_id: int) -> str:
+    """check redis cache"""
+    key = f"user_alert:{user_id}"
+    alerts = await redis_client.get(name=key)
+    if alerts is not None:
+        alerts = await redis_decode(alerts)
+        return alerts[0]
+
+    sql = select(Users)
+    sql = sql.where(Users.user_id == user_id)
+
+    async with USERDATA_ENGINE.get_session() as session:
+        session: AsyncSession = session
+        async with session.begin():
+            request = await session.execute(sql)
+            data = sqlalchemy_result(request)
+            data = data.rows2dict()
+
+    if len(data) == 0:
+        if data is None:
+            return None
+    else:
+        data = data[0]
+
+    del data["timestamp"]
+
+    await redis_client.set(name=key, value=str(data), ex=60)
+    return data
+
+
 async def register_user_token(
     login: str, discord: str, discord_id: str, token: str
 ) -> json:
