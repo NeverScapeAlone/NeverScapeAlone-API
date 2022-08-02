@@ -11,6 +11,7 @@ from api.database.functions import (
     sanitize,
     ratelimit,
     user,
+    verify_ID,
     websocket_to_user_id,
 )
 from fastapi import APIRouter, WebSocket
@@ -140,6 +141,7 @@ async def websocket_endpoint(
         while True:
             try:
                 request = await websocket.receive_json()
+                print(request)
             except Exception as e:
                 logging.debug(f"{login} => {e}")
                 await manager.disconnect(
@@ -148,6 +150,52 @@ async def websocket_endpoint(
                 return
 
             match request["detail"]:
+
+                case "like":
+                    like_id = request["like"]
+                    if not await verify_ID(user_id=like_id):
+                        continue
+                    if like_id == str(user_id):
+                        continue
+                    key = f"rating:{like_id}:{user_id}"
+                    await redis_client.set(name=key, value=int(1))
+
+                case "dislike":
+                    dislike_id = request["dislike"]
+                    if not await verify_ID(user_id=dislike_id):
+                        continue
+                    if dislike_id == str(user_id):
+                        continue
+                    key = f"rating:{dislike_id}:{user_id}"
+                    await redis_client.set(name=key, value=int(-1))
+
+                case "kick":
+                    kick_id = request["kick"]
+                    if not await verify_ID(user_id=kick_id):
+                        continue
+                    if kick_id == str(user_id):
+                        continue
+
+                case "promote":
+                    promote_id = request["promote"]
+                    if not await verify_ID(user_id=promote_id):
+                        continue
+                    if promote_id == str(user_id):
+                        continue
+
+                case "favorite":
+                    favorite_id = request["favorite"]
+                    if not await verify_ID(user_id=favorite_id):
+                        continue
+                    if favorite_id == str(user_id):
+                        continue
+
+                case "chat":
+                    chat_id = request["chat"]
+                    if not await verify_ID(user_id=chat_id):
+                        continue
+                    if chat_id == str(user_id):
+                        continue
 
                 case "player_location":
                     if not await ratelimit(connecting_IP=websocket.client.host):

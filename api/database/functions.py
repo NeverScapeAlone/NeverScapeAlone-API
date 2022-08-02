@@ -74,6 +74,13 @@ async def redis_decode(bytes_encoded) -> list:
     return [ast.literal_eval(bytes_encoded.decode("utf-8"))]
 
 
+async def verify_ID(user_id):
+    user_id = str(user_id)
+    if re.fullmatch("^[0-9]{0,64}", user_id):
+        return True
+    return False
+
+
 async def ratelimit(connecting_IP):
     MAX_CALLS_SECOND = 10
     """load key formats"""
