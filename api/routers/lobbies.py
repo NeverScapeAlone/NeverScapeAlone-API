@@ -247,14 +247,24 @@ async def websocket_endpoint(
                         continue
                     logging.info(f"{login} -> Quick")
                     match_list = request["match_list"]
-                    key_chain = []
-                    for activity in match_list:
-                        keys = await redis_client.keys(
-                            f"match:*ACTIVITY={activity}:PRIVATE=False"
+
+                    if "RANDOM" in match_list:
+                        flat_keys = await redis_client.keys(
+                            f"match:*ACTIVITY=*:PRIVATE=False"
                         )
-                        if keys:
-                            key_chain.append(keys)
-                    flat_keys = [key for keys in key_chain for key in keys]
+                    else:
+                        key_chain = []
+                        for activity in match_list:
+                            keys = await redis_client.keys(
+                                f"match:*ACTIVITY={activity}:PRIVATE=False"
+                            )
+                            if keys:
+                                key_chain.append(keys)
+                        flat_keys = [key for keys in key_chain for key in keys]
+
+                    if not flat_keys:
+                        continue
+
                     match = random.choice(flat_keys)
                     match = match.decode("utf-8")
                     start = match.find("ID=")
