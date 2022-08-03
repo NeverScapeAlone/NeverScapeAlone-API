@@ -227,6 +227,7 @@ class player(BaseModel):
     runewatch: Optional[str]
     wdr: Optional[str]
     verified: Optional[bool]
+    rating: Optional[int]
     user_id: int
     login: str
     isPartyLeader: Optional[bool] = False

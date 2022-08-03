@@ -12,6 +12,7 @@ from api.database.functions import (
     ratelimit,
     user,
     verify_ID,
+    get_rating,
     websocket_to_user_id,
 )
 from fastapi import APIRouter, WebSocket
@@ -167,7 +168,7 @@ async def websocket_endpoint(
                     if dislike_id == str(user_id):
                         continue
                     key = f"rating:{dislike_id}:{user_id}"
-                    await redis_client.set(name=key, value=int(-1))
+                    await redis_client.set(name=key, value=int(0))
 
                 case "kick":
                     kick_id = request["kick"]
@@ -181,20 +182,6 @@ async def websocket_endpoint(
                     if not await verify_ID(user_id=promote_id):
                         continue
                     if promote_id == str(user_id):
-                        continue
-
-                case "favorite":
-                    favorite_id = request["favorite"]
-                    if not await verify_ID(user_id=favorite_id):
-                        continue
-                    if favorite_id == str(user_id):
-                        continue
-
-                case "chat":
-                    chat_id = request["chat"]
-                    if not await verify_ID(user_id=chat_id):
-                        continue
-                    if chat_id == str(user_id):
                         continue
 
                 case "player_location":
@@ -350,8 +337,11 @@ async def websocket_endpoint(
                     i = 0
                     players = m.players
                     uids = [player.user_id for player in players]
+
+                    rating = await get_rating(user_id=user_id)
                     if user_id not in uids:
                         p = models.player.parse_obj(user_data)
+                        p.rating = rating
                         m.players.append(p)
                         data = m.dict()
                         await redis_client.set(name=key, value=str(data))
@@ -420,6 +410,8 @@ async def create_match(request, user_data):
     private = False if (len(group_passcode) == 0) else True
     ID = int(time.time() ** 2)
 
+    rating = await get_rating(user_id=user_id)
+
     initial_match = models.match(
         ID=ID,
         activity=activity,
@@ -439,6 +431,7 @@ async def create_match(request, user_data):
                 verified=verified,
                 user_id=user_id,
                 login=login,
+                rating=rating,
                 runewatch=runewatch,
                 wdr=wdr,
             )

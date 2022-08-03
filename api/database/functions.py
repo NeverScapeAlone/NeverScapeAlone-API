@@ -81,6 +81,15 @@ async def verify_ID(user_id):
     return False
 
 
+async def get_rating(user_id):
+    keys = await redis_client.keys(f"rating:{user_id}:*")
+    if not keys:
+        return -1
+    rating_values = await redis_client.mget(keys)
+    rating_list = [int(rating) for rating in rating_values]
+    return int((rating_list.count(1) / len(rating_list)) * 50)
+
+
 async def ratelimit(connecting_IP):
     MAX_CALLS_SECOND = 10
     """load key formats"""
