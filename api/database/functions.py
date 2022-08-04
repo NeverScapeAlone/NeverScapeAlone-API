@@ -1,23 +1,21 @@
 import ast
 import asyncio
-from dis import disco
 import json
 import logging
 import random
+from typing import Tuple
 import re
 import traceback
 from asyncio.tasks import create_task
-from atexit import register
 from cgitb import text
 from collections import UserDict, namedtuple
 from datetime import datetime, timedelta
 from optparse import Option
-from pickletools import optimize
 from pstats import Stats
 from typing import List, Optional
-from urllib.request import Request
 
 import pandas as pd
+from api.database import models
 from api.config import DEV_MODE, redis_client
 from api.database.database import USERDATA_ENGINE, Engine, EngineType
 from api.database.models import Users, UserToken
@@ -163,7 +161,7 @@ async def validate_discord(discord: str):
         if discord[-5] != "#":
             discord = discord[:-4] + "#" + discord[-4:]
 
-    if len(discord[:-5]) >= 1 & len(discord[:-5]) <= 32:
+    if len(discord[:-5]) >= 1 & len(discord[:-5]) <= 64:
         return discord
 
     return False
@@ -340,6 +338,18 @@ async def websocket_to_user_id(websocket):
         user_agent=user_agent,
     )
     return user_id
+
+
+async def get_match_from_ID(group_identifier):
+    pattern = f"match:ID={group_identifier}*"
+    keys = await redis_client.keys(pattern)
+    if not keys:
+        return None, None
+    key = keys[0]
+    match = await redis_client.get(key)
+    data = await redis_decode(bytes_encoded=match)
+    m = models.match.parse_obj(data[0])
+    return key, m
 
 
 async def load_redis_from_sql():

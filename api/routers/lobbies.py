@@ -1,22 +1,23 @@
 import json
 import logging
 import random
+import sys
 import time
 import traceback
-import sys
 
+import api.database.models as models
 from api.config import VERSION, redis_client
 from api.database.functions import (
+    get_rating,
+    ratelimit,
     redis_decode,
     sanitize,
-    ratelimit,
     user,
+    get_match_from_ID,
     verify_ID,
-    get_rating,
     websocket_to_user_id,
 )
 from fastapi import APIRouter, WebSocket
-import api.database.models as models
 
 logger = logging.getLogger(__name__)
 
@@ -37,28 +38,25 @@ class ConnectionManager:
         login = websocket.headers["Login"]
 
         if group_identifier != "0":
-            keys = await redis_client.keys(f"match:ID={group_identifier}*")
-            values = await redis_client.mget(keys)
-            match_data = await redis_decode(bytes_encoded=values)
-            if not match_data:
+            key, m = await get_match_from_ID(group_identifier=group_identifier)
+            if not m:
                 await websocket.send_json(
                     {
                         "detail": "global message",
                         "server_message": {"message": "No Data"},
                     }
                 )
+                await websocket.close(code=1000)
                 return
-            match_info = match_data[0]
-            if match_info["isPrivate"]:
-                if match_info["group_passcode"] != passcode:
-                    await websocket.send_json(
-                        {
-                            "detail": "global message",
-                            "server_message": {"message": "Incorrect Passcode"},
-                        }
-                    )
-                    await websocket.close(code=1001)
-                    return
+            if (m.isPrivate) & (m.group_passcode != passcode):
+                await websocket.send_json(
+                    {
+                        "detail": "global message",
+                        "server_message": {"message": "Incorrect Passcode"},
+                    }
+                )
+                await websocket.close(code=3000)
+                return
 
         try:
             self.active_connections[group_identifier].append(websocket)
@@ -68,33 +66,69 @@ class ConnectionManager:
             logging.info(f"{login} > {group_identifier}")
 
     async def disconnect(self, websocket: WebSocket, group_identifier: str):
-        """disconnect user"""
+        """disconnect current socket"""
         login = websocket.headers["Login"]
         user_id = await websocket_to_user_id(websocket=websocket)
-
         self.active_connections[group_identifier].remove(websocket)
 
         if group_identifier != "0":
-            key = f"match:ID={group_identifier}*"
-            matches = await redis_client.keys(key)
-            if not matches:
+            key, m = await get_match_from_ID(group_identifier=group_identifier)
+            if not m:
                 return
-            match_key = matches[0]
-            raw_data = await redis_client.get(match_key)
-            data = await redis_decode(bytes_encoded=raw_data)
-            m = models.match.parse_obj(data[0])
             for idx, player in enumerate(m.players):
                 if player.user_id == user_id:
                     m.players.remove(player)
             if not self.active_connections[group_identifier]:
                 del self.active_connections[group_identifier]
             if not m.players:
-                await redis_client.delete(match_key)
+                await redis_client.delete(key)
                 logging.info(f"{login} < {group_identifier}")
                 return
-            await redis_client.set(name=match_key, value=str(m.dict()))
+            await redis_client.set(name=key, value=str(m.dict()))
 
         logging.info(f"{login} << {group_identifier}")
+        try:
+            # Try to disconnect socket, if it's already been disconnected then ignore and eat exception.
+            await websocket.close(1000)
+        except Exception as e:
+            pass
+
+    async def disconnect_other_user(
+        self, group_identifier: str, user_to_disconnect: str
+    ):
+        """disconnect another socket"""
+
+        if group_identifier == "0":
+            return
+
+        subject_socket = None
+        for socket in self.active_connections[group_identifier]:
+            if socket.headers["Login"] == user_to_disconnect.login:
+                subject_socket = socket
+
+        if not subject_socket:
+            return
+
+        key, m = await get_match_from_ID(group_identifier=group_identifier)
+
+        if not m:
+            return
+
+        for idx, player in enumerate(m.players):
+            if player.user_id == user_to_disconnect.user_id:
+                m.players.remove(player)
+
+        await redis_client.set(name=key, value=str(m.dict()))
+
+        logging.info(f"{user_to_disconnect.login} <<K {group_identifier}")
+        await subject_socket.send_json(
+            {
+                "detail": "global message",
+                "server_message": {"message": "You have been kicked"},
+            }
+        )
+
+        await subject_socket.close(1000)
 
     async def broadcast(self, group_identifier: id, payload: json):
         """send message to all clients in group"""
@@ -160,6 +194,7 @@ async def websocket_endpoint(
                         continue
                     key = f"rating:{like_id}:{user_id}"
                     await redis_client.set(name=key, value=int(1))
+                    logging.info(f"{login} like {user_id}")
 
                 case "dislike":
                     dislike_id = request["dislike"]
@@ -167,8 +202,10 @@ async def websocket_endpoint(
                         continue
                     if dislike_id == str(user_id):
                         continue
+
                     key = f"rating:{dislike_id}:{user_id}"
                     await redis_client.set(name=key, value=int(0))
+                    logging.info(f"{login} dislike {user_id}")
 
                 case "kick":
                     kick_id = request["kick"]
@@ -176,6 +213,33 @@ async def websocket_endpoint(
                         continue
                     if kick_id == str(user_id):
                         continue
+                    kick_id = int(kick_id)
+                    key, m = await get_match_from_ID(group_identifier)
+                    if not m:
+                        continue
+
+                    submitting_player = None
+                    subject_player = None
+                    for player in m.players:
+                        if player.user_id == user_id:
+                            submitting_player = player
+                        if player.user_id == kick_id:
+                            subject_player = player
+                        if (subject_player != None) & (submitting_player != None):
+                            break
+
+                    if (subject_player == None) or (submitting_player == None):
+                        continue
+
+                    if submitting_player.isPartyLeader:
+                        await manager.disconnect_other_user(
+                            group_identifier=group_identifier,
+                            user_to_disconnect=subject_player,
+                        )
+                        continue
+
+                    group_size = len(m.players)
+                    # add kick based upon int(group size/2)+1 threshold, and logger for amount, display in match or player panel (?)
 
                 case "promote":
                     promote_id = request["promote"]
@@ -183,6 +247,32 @@ async def websocket_endpoint(
                         continue
                     if promote_id == str(user_id):
                         continue
+                    promote_id = int(promote_id)
+                    key, m = await get_match_from_ID(group_identifier)
+                    if not m:
+                        continue
+
+                    submitting_player = None
+                    subject_player = None
+                    for player in m.players:
+                        if player.user_id == user_id:
+                            submitting_player = player
+                        if player.user_id == promote_id:
+                            subject_player = player
+                        if (subject_player != None) & (submitting_player != None):
+                            break
+
+                    if (subject_player == None) or (submitting_player == None):
+                        continue
+
+                    if submitting_player.isPartyLeader:
+                        submitting_player.isPartyLeader = False
+                        subject_player.isPartyLeader = True
+                        # reassign to m party
+                        continue
+
+                    group_size = len(m.players)
+                    # add promote based upon int(group size/2)+1 threshold, and logger for amount, display in match or player panel (?)
 
                 case "player_location":
                     if not await ratelimit(connecting_IP=websocket.client.host):
@@ -193,15 +283,9 @@ async def websocket_endpoint(
                     location = request["location"]
                     location = models.location.parse_obj(location)
 
-                    key = f"match:ID={group_identifier}*"
-                    matches = await redis_client.keys(key)
-                    if not matches:
-                        break
-                    match_key = matches[0]
-                    raw_data = await redis_client.get(match_key)
-                    data = await redis_decode(bytes_encoded=raw_data)
-                    data = data[0]
-                    m = models.match.parse_obj(data)
+                    key, m = await get_match_from_ID(group_identifier=group_identifier)
+                    if not m:
+                        continue
                     i = 0
                     players = m.players
                     for idx, player in enumerate(players):
@@ -209,7 +293,7 @@ async def websocket_endpoint(
                             i = idx
                     m.players[i].location = location
 
-                    await redis_client.set(name=match_key, value=str(m.dict()))
+                    await redis_client.set(name=key, value=str(m.dict()))
 
                     payload = {"detail": "match update", "match_data": m.dict()}
 
@@ -302,15 +386,10 @@ async def websocket_endpoint(
                     logging.info(f"{login} ->> Set Status")
                     status_val = models.status.parse_obj(request["status"])
 
-                    key = f"match:ID={group_identifier}*"
-                    matches = await redis_client.keys(key)
-                    if not matches:
-                        break
-                    match_key = matches[0]
-                    raw_data = await redis_client.get(match_key)
-                    data = await redis_decode(bytes_encoded=raw_data)
-                    data = data[0]
-                    m = models.match.parse_obj(data)
+                    key, m = await get_match_from_ID(group_identifier=group_identifier)
+                    if not m:
+                        continue
+
                     i = 0
                     players = m.players
                     for idx, player in enumerate(players):
@@ -318,7 +397,7 @@ async def websocket_endpoint(
                             i = idx
                     m.players[i].status = status_val
 
-                    await redis_client.set(name=match_key, value=str(m.dict()))
+                    await redis_client.set(name=key, value=str(m.dict()))
 
                     payload = {"detail": "match update", "match_data": m.dict()}
 
@@ -329,22 +408,12 @@ async def websocket_endpoint(
                 case "check_connection":
                     if group_identifier == "0":
                         continue
-
                     if not await ratelimit(connecting_IP=websocket.client.host):
                         continue
-
-                    pattern = f"match:ID={group_identifier}*"
-                    keys = await redis_client.keys(pattern=pattern)
-                    if not keys:
+                    key, m = await get_match_from_ID(group_identifier=group_identifier)
+                    if not m:
                         continue
-                    key = keys[0]
-                    data = await redis_client.get(name=key)
-                    data = await redis_decode(bytes_encoded=data)
-                    data = data[0]
 
-                    m = models.match.parse_obj(data)
-
-                    i = 0
                     players = m.players
                     uids = [player.user_id for player in players]
 
@@ -353,11 +422,10 @@ async def websocket_endpoint(
                         p = models.player.parse_obj(user_data)
                         p.rating = rating
                         m.players.append(p)
-                        data = m.dict()
-                        await redis_client.set(name=key, value=str(data))
+                        await redis_client.set(name=key, value=str(m.dict()))
 
                     await websocket.send_json(
-                        {"detail": "successful connection", "match_data": data}
+                        {"detail": "successful connection", "match_data": m.dict()}
                     )
 
                 case _:
@@ -435,6 +503,7 @@ async def create_match(request, user_data):
             regions=regions,
         ),
         players=[
+            # the first player to be added to the group
             models.player(
                 discord="NONE" if discord is None else discord,
                 isPartyLeader=True,
