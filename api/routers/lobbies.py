@@ -11,9 +11,12 @@ from api.database.functions import (
     get_rating,
     ratelimit,
     redis_decode,
+    get_party_leader_from_match_ID,
     sanitize,
     user,
+    change_rating,
     get_match_from_ID,
+    update_player_in_group,
     verify_ID,
     websocket_to_user_id,
 )
@@ -96,7 +99,7 @@ class ConnectionManager:
     async def disconnect_other_user(
         self, group_identifier: str, user_to_disconnect: str
     ):
-        """disconnect another socket"""
+        """disconnect another socket and remove player from group"""
 
         if group_identifier == "0":
             return
@@ -187,25 +190,18 @@ async def websocket_endpoint(
             match request["detail"]:
 
                 case "like":
-                    like_id = request["like"]
-                    if not await verify_ID(user_id=like_id):
-                        continue
-                    if like_id == str(user_id):
-                        continue
-                    key = f"rating:{like_id}:{user_id}"
-                    await redis_client.set(name=key, value=int(1))
-                    logging.info(f"{login} like {user_id}")
+                    request_id = request["like"]
+                    if await change_rating(
+                        request_id=request_id, user_id=user_id, is_like=True
+                    ):
+                        logging.info(f"{user_id} liked {request_id}")
 
                 case "dislike":
-                    dislike_id = request["dislike"]
-                    if not await verify_ID(user_id=dislike_id):
-                        continue
-                    if dislike_id == str(user_id):
-                        continue
-
-                    key = f"rating:{dislike_id}:{user_id}"
-                    await redis_client.set(name=key, value=int(0))
-                    logging.info(f"{login} dislike {user_id}")
+                    request_id = request["dislike"]
+                    if await change_rating(
+                        request_id=request_id, user_id=user_id, is_like=False
+                    ):
+                        logging.info(f"{user_id} disliked {request_id}")
 
                 case "kick":
                     kick_id = request["kick"]
@@ -220,6 +216,7 @@ async def websocket_endpoint(
 
                     submitting_player = None
                     subject_player = None
+                    # get player objects
                     for player in m.players:
                         if player.user_id == user_id:
                             submitting_player = player
@@ -238,8 +235,26 @@ async def websocket_endpoint(
                         )
                         continue
 
+                    if subject_player.kick_list:
+                        if submitting_player.user_id not in subject_player.kick_list:
+                            subject_player.kick_list.append(submitting_player.user_id)
+                    else:
+                        subject_player.kick_list = [submitting_player.user_id]
+
+                    await update_player_in_group(
+                        group_identifier=group_identifier,
+                        player_to_update=subject_player,
+                    )
+
                     group_size = len(m.players)
-                    # add kick based upon int(group size/2)+1 threshold, and logger for amount, display in match or player panel (?)
+                    kick_length = len(subject_player.kick_list)
+                    threshold = int(group_size / 2) + 1
+                    if kick_length >= threshold:
+                        await manager.disconnect_other_user(
+                            group_identifier=group_identifier,
+                            user_to_disconnect=subject_player,
+                        )
+                        continue
 
                 case "promote":
                     promote_id = request["promote"]
@@ -268,11 +283,45 @@ async def websocket_endpoint(
                     if submitting_player.isPartyLeader:
                         submitting_player.isPartyLeader = False
                         subject_player.isPartyLeader = True
-                        # reassign to m party
+                        await update_player_in_group(
+                            group_identifier=group_identifier,
+                            player_to_update=submitting_player,
+                        )
+                        await update_player_in_group(
+                            group_identifier=group_identifier,
+                            player_to_update=subject_player,
+                        )
                         continue
 
+                    if subject_player.promote_list:
+                        if submitting_player.user_id not in subject_player.promote_list:
+                            subject_player.promote_list.append(
+                                submitting_player.user_id
+                            )
+                    else:
+                        subject_player.promote_list = [submitting_player.user_id]
+
                     group_size = len(m.players)
-                    # add promote based upon int(group size/2)+1 threshold, and logger for amount, display in match or player panel (?)
+                    promote_length = len(subject_player.promote_list)
+                    threshold = int(group_size / 2) + 1
+                    if promote_length >= threshold:
+                        party_leader = await get_party_leader_from_match_ID(
+                            group_identifier=group_identifier
+                        )
+                        if party_leader:
+                            party_leader.isPartyLeader = False
+                            await update_player_in_group(
+                                group_identifier=group_identifier,
+                                player_to_update=party_leader,
+                            )
+
+                        subject_player.promote_list = None
+                        subject_player.isPartyLeader = True
+                        await update_player_in_group(
+                            group_identifier=group_identifier,
+                            player_to_update=subject_player,
+                        )
+                        continue
 
                 case "player_location":
                     if not await ratelimit(connecting_IP=websocket.client.host):
@@ -447,6 +496,7 @@ async def search_match(search: str):
     for match in match_data:
         requirement = match["requirement"]
 
+        party_leader = "NO LEADER"
         for player in match["players"]:
             if player["isPartyLeader"] != True:
                 continue

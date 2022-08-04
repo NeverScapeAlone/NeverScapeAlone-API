@@ -340,6 +340,55 @@ async def websocket_to_user_id(websocket):
     return user_id
 
 
+async def update_player_in_group(
+    group_identifier: int, player_to_update: models.player
+):
+    key, m = await get_match_from_ID(group_identifier)
+    if not m:
+        return
+    for idx, player in enumerate(m.players):
+        if player.user_id == player_to_update.user_id:
+            break
+    m.players[idx] = player_to_update
+    await redis_client.set(name=key, value=m.dict())
+
+
+async def get_party_leader_from_match_ID(group_identifier: int) -> models.player:
+    key, m = await get_match_from_ID(group_identifier)
+    if not m:
+        return
+    for player in m.players:
+        if player.isPartyLeader:
+            return player
+    return None
+
+
+async def change_rating(request_id, user_id: int, is_like):
+    # Prevent user from rating self
+    if request_id == str(user_id):
+        return False
+    # Verify that incoming ID is of correct format
+    if not await verify_ID(user_id=request_id):
+        return False
+    key = f"rating:{request_id}:{user_id}"
+    vote = 1 if is_like else 0
+    await redis_client.set(name=key, value=int(vote))
+    return True
+
+
+async def update_player_in_group(
+    group_identifier: int, player_to_update: models.player
+):
+    key, m = await get_match_from_ID(group_identifier)
+    if not m:
+        return
+    for idx, player in enumerate(m.players):
+        if player.user_id == player_to_update.user_id:
+            break
+    m.players[idx] = player_to_update
+    await redis_client.set(name=key, value=str(m.dict()))
+
+
 async def get_match_from_ID(group_identifier):
     pattern = f"match:ID={group_identifier}*"
     keys = await redis_client.keys(pattern)

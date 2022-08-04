@@ -228,6 +228,8 @@ class player(BaseModel):
     wdr: Optional[str]
     verified: Optional[bool]
     rating: Optional[int]
+    kick_list: Optional[list[int]]
+    promote_list: Optional[list[int]]
     user_id: int
     login: str
     isPartyLeader: Optional[bool] = False
