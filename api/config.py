@@ -17,7 +17,7 @@ DISCORD_TOKEN = os.environ.get("discord_route_token")
 REDIS_PASSWORD = os.environ.get("redis_password")
 RATE_LIMIT_MINUTE = 120
 RATE_LIMIT_HOUR = 7200
-VERSION = "v2.1.0-alpha"
+VERSION = "v2.2.0-alpha"
 DEV_MODE = True
 
 redis_client = aioredis.from_url(
