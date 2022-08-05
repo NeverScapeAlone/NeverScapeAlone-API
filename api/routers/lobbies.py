@@ -195,7 +195,6 @@ async def websocket_endpoint(
         while True:
             try:
                 request = await websocket.receive_json()
-                print(request)
             except Exception as e:
                 logging.debug(f"{login} => {e}")
                 await manager.disconnect(
