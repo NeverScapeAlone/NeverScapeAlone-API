@@ -253,6 +253,7 @@ class match(BaseModel):
     party_members: str
     group_passcode: str
     isPrivate: bool
+    ban_list: Optional[list[int]]
     requirement: requirement
     players: list[player]
 

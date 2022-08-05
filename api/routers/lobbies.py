@@ -58,8 +58,19 @@ class ConnectionManager:
                         "server_message": {"message": "Incorrect Passcode"},
                     }
                 )
-                await websocket.close(code=3000)
+                await websocket.close(code=1000)
                 return
+            if m.ban_list:
+                user_id = await websocket_to_user_id(websocket=websocket)
+                if user_id in m.ban_list:
+                    await websocket.send_json(
+                        {
+                            "detail": "global message",
+                            "server_message": {"message": "Banned from Group"},
+                        }
+                    )
+                    await websocket.close(code=1000)
+                    return
 
         try:
             self.active_connections[group_identifier].append(websocket)
@@ -120,6 +131,11 @@ class ConnectionManager:
         for idx, player in enumerate(m.players):
             if player.user_id == user_to_disconnect.user_id:
                 m.players.remove(player)
+
+        if not m.ban_list:
+            m.ban_list = [player.user_id]
+        else:
+            m.ban_list.append(player.user_id)
 
         await redis_client.set(name=key, value=str(m.dict()))
 
@@ -216,7 +232,6 @@ async def websocket_endpoint(
 
                     submitting_player = None
                     subject_player = None
-                    # get player objects
                     for player in m.players:
                         if player.user_id == user_id:
                             submitting_player = player
