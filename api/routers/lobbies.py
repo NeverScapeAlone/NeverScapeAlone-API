@@ -74,10 +74,10 @@ class ConnectionManager:
 
         try:
             self.active_connections[group_identifier].append(websocket)
-            logging.info(f"{login} >> {group_identifier}")
+            logger.info(f"{login} >> {group_identifier}")
         except KeyError:
             self.active_connections[group_identifier] = [websocket]
-            logging.info(f"{login} > {group_identifier}")
+            logger.info(f"{login} > {group_identifier}")
 
     async def disconnect(self, websocket: WebSocket, group_identifier: str):
         """disconnect current socket"""
@@ -96,11 +96,11 @@ class ConnectionManager:
                 del self.active_connections[group_identifier]
             if not m.players:
                 await redis_client.delete(key)
-                logging.info(f"{login} < {group_identifier}")
+                logger.info(f"{login} < {group_identifier}")
                 return
             await redis_client.set(name=key, value=str(m.dict()))
 
-        logging.info(f"{login} << {group_identifier}")
+        logger.info(f"{login} << {group_identifier}")
         try:
             # Try to disconnect socket, if it's already been disconnected then ignore and eat exception.
             await websocket.close(1000)
@@ -139,7 +139,7 @@ class ConnectionManager:
 
         await redis_client.set(name=key, value=str(m.dict()))
 
-        logging.info(f"{user_to_disconnect.login} <<K {group_identifier}")
+        logger.info(f"{user_to_disconnect.login} <<K {group_identifier}")
         await subject_socket.send_json(
             {
                 "detail": "global message",
@@ -197,7 +197,7 @@ async def websocket_endpoint(
                 request = await websocket.receive_json()
                 print(request)
             except Exception as e:
-                logging.debug(f"{login} => {e}")
+                logger.debug(f"{login} => {e}")
                 await manager.disconnect(
                     websocket=websocket, group_identifier=group_identifier
                 )
@@ -210,14 +210,14 @@ async def websocket_endpoint(
                     if await change_rating(
                         request_id=request_id, user_id=user_id, is_like=True
                     ):
-                        logging.info(f"{user_id} liked {request_id}")
+                        logger.info(f"{user_id} liked {request_id}")
 
                 case "dislike":
                     request_id = request["dislike"]
                     if await change_rating(
                         request_id=request_id, user_id=user_id, is_like=False
                     ):
-                        logging.info(f"{user_id} disliked {request_id}")
+                        logger.info(f"{user_id} disliked {request_id}")
 
                 case "kick":
                     kick_id = request["kick"]
@@ -343,7 +343,7 @@ async def websocket_endpoint(
                         continue
                     if group_identifier == 0:
                         continue
-                    logging.info(f"{login} ->> Set Location")
+                    logger.info(f"{login} ->> Set Location")
                     location = request["location"]
                     location = models.location.parse_obj(location)
 
@@ -377,12 +377,12 @@ async def websocket_endpoint(
                 case "search_match":
                     if not await ratelimit(connecting_IP=websocket.client.host):
                         continue
-                    logging.info(f"{login} -> Search")
+                    logger.info(f"{login} -> Search")
                     search = await sanitize(request["search"])
                     if not search:
                         continue
                     data = await search_match(search=search)
-                    logging.info(f"{login} <- Search")
+                    logger.info(f"{login} <- Search")
                     await websocket.send_json(
                         {
                             "detail": "search match data",
@@ -393,7 +393,7 @@ async def websocket_endpoint(
                 case "quick_match":
                     if not await ratelimit(connecting_IP=websocket.client.host):
                         continue
-                    logging.info(f"{login} -> Quick")
+                    logger.info(f"{login} -> Quick")
                     match_list = request["match_list"]
 
                     if "RANDOM" in match_list:
@@ -429,7 +429,7 @@ async def websocket_endpoint(
                 case "create_match":
                     if not await ratelimit(connecting_IP=websocket.client.host):
                         continue
-                    logging.info(f"{login} -> Create Match")
+                    logger.info(f"{login} -> Create Match")
                     initial_match = await create_match(request, user_data)
                     key = f"match:ID={initial_match.ID}:ACTIVITY={initial_match.activity}:PRIVATE={initial_match.isPrivate}"
                     await redis_client.set(name=key, value=str(initial_match.dict()))
@@ -447,7 +447,7 @@ async def websocket_endpoint(
                     if not await ratelimit(connecting_IP=websocket.client.host):
                         continue
 
-                    logging.info(f"{login} ->> Set Status")
+                    logger.info(f"{login} ->> Set Status")
                     status_val = models.status.parse_obj(request["status"])
 
                     key, m = await get_match_from_ID(group_identifier=group_identifier)
@@ -496,7 +496,7 @@ async def websocket_endpoint(
                     continue
 
     except Exception as e:
-        logging.debug(f"{websocket.client.host} => {e}")
+        logger.debug(f"{websocket.client.host} => {e}")
         print(traceback.format_exc())
         await manager.disconnect(websocket=websocket, group_identifier=group_identifier)
 
