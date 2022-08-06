@@ -6,6 +6,7 @@ import random
 from typing import Tuple
 import re
 import traceback
+import time
 from asyncio.tasks import create_task
 from cgitb import text
 from collections import UserDict, namedtuple
@@ -387,6 +388,14 @@ async def update_player_in_group(
             break
     m.players[idx] = player_to_update
     await redis_client.set(name=key, value=str(m.dict()))
+
+
+def matchID():
+    """generate unique match ID"""
+    ID = hex(int(time.time() ** 2))[4:-2][::-1]
+    ID = [ID[i : i + 4] for i in range(0, len(ID), 4)]
+    ID = "-".join(ID)
+    return ID
 
 
 async def get_match_from_ID(group_identifier):

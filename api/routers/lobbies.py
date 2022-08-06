@@ -11,6 +11,7 @@ from api.database.functions import (
     get_rating,
     ratelimit,
     redis_decode,
+    matchID,
     get_party_leader_from_match_ID,
     sanitize,
     user,
@@ -551,7 +552,7 @@ async def create_match(request, user_data):
     regions = sub_payload["regions"]
     group_passcode = sub_payload["group_passcode"]
     private = bool(group_passcode)
-    ID = hex(int(time.time() ** 2))[3:-2][::-1]
+    ID = matchID()
 
     rating = await get_rating(user_id=user_id)
 
