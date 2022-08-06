@@ -18,6 +18,7 @@ from api.database.functions import (
     validate_discord,
     redis_decode,
 )
+import logging
 from api.database.models import ActiveMatches, UserQueue, Users, WorldInformation
 import api.database.models as models
 from certifi import where
@@ -28,7 +29,7 @@ from pydantic import BaseModel
 from pydantic.fields import Field
 from pymysql import Timestamp
 from pyparsing import Opt
-from requests import delete, options, request, session
+from requests import Response, delete, options, request, session
 from sqlalchemy import TEXT, TIMESTAMP, select, table, tuple_, values
 from sqlalchemy.dialects.mysql import Insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,6 +37,8 @@ from sqlalchemy.orm import aliased
 from sqlalchemy.sql.expression import Select, insert, select, update
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 
 @router.get("/V1/discord/verify", tags=["discord"])
@@ -111,8 +114,7 @@ async def get_active_queues(token: str) -> json:
             detail=f"bad token",
         )
         return
-    keys = await redis_client.keys("match:False*")
-
+    keys = await redis_client.keys("match:*False")
     if not keys:
         raise HTTPException(
             status_code=202,
@@ -144,21 +146,24 @@ async def get_active_matches(token: str) -> json:
         return
 
     keys = await redis_client.keys("match:*")
-
     if not keys:
-        raise HTTPException(
-            status_code=202,
-            detail=f"no information",
-        )
-        return
+        return {"active_matches_discord": None}
 
     data = await redis_client.mget(keys=keys)
     cleaned = await redis_decode(bytes_encoded=data)
+
+    active_matches_discord = []
     for match in cleaned:
         m = models.match.parse_obj(match)
         if not m.discord_invite:
-            print(m)
-    return
+            am = models.active_match_discord.parse_obj(m.dict())
+            am.player_count = len(m.players)
+            active_matches_discord.append(am.dict())
+
+    response = {"active_matches_discord": active_matches_discord}
+    response = json.dumps(response)
+    response = json.loads(response)
+    return response
 
 
 @router.post("/V1/discord/post-invites", tags=["discord"])
@@ -169,22 +174,12 @@ async def post_invites(token: str, request: Request) -> json:
             detail=f"bad token",
         )
         return
-    # TODO fix post-invites
-
-    invite_pairs = await request.json()
-    values = json.loads(invite_pairs)["invite_pairs"]
-    statements = []
-    for value in values:
-        party = value["party_identifier"]
-        invite = value["discord_invite"]
-        sql = f"""update active_matches set discord_invite = "{invite}" where party_identifier = "{party}";"""
-        statements.append(sql)
-    all_statements = " ".join(statements)
-
-    if len(all_statements) == 0:
-        return
-
-    async with USERDATA_ENGINE.get_session() as session:
-        session: AsyncSession = session
-        async with session.begin():
-            await session.execute(all_statements)
+    j = await request.json()
+    j = json.loads(j)
+    payload = j["invites"]
+    for match in payload:
+        am = models.active_match_discord.parse_obj(match)
+        key, m = await get_match_from_ID(group_identifier=am.ID)
+        m.discord_invite = am.discord_invite
+        await redis_client.set(name=key, value=str(m.dict()))
+        logger.info(f"Invite {am.discord_invite} created for {am.ID}")

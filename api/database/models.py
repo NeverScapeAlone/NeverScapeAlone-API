@@ -10,11 +10,7 @@ from dataclasses import replace
 from datetime import datetime
 from email.policy import default
 from multiprocessing.sharedctypes import Value
-from optparse import Option
-from pickletools import optimize
-from pstats import Stats
 from re import L, sub
-from sys import int_info
 from tokenize import group
 from typing import List, Optional, Text
 from urllib.request import Request
@@ -242,6 +238,14 @@ class requirement(BaseModel):
     split_type: str
     accounts: str
     regions: str
+
+
+class active_match_discord(BaseModel):
+    """active match model"""
+
+    discord_invite: Optional[str]
+    player_count: Optional[int]
+    ID: str
 
 
 class match(BaseModel):
