@@ -155,10 +155,9 @@ async def get_active_matches(token: str) -> json:
     active_matches_discord = []
     for match in cleaned:
         m = models.match.parse_obj(match)
-        if not m.discord_invite:
-            am = models.active_match_discord.parse_obj(m.dict())
-            am.player_count = len(m.players)
-            active_matches_discord.append(am.dict())
+        am = models.active_match_discord.parse_obj(m.dict())
+        am.player_count = len(m.players)
+        active_matches_discord.append(am.dict())
 
     response = {"active_matches_discord": active_matches_discord}
     response = json.dumps(response)
