@@ -550,8 +550,8 @@ async def create_match(request, user_data):
     accounts = sub_payload["accounts"]
     regions = sub_payload["regions"]
     group_passcode = sub_payload["group_passcode"]
-    private = False if (len(group_passcode) == 0) else True
-    ID = int(time.time() ** 2)
+    private = bool(group_passcode)
+    ID = hex(int(time.time() ** 2))[3:-2][::-1]
 
     rating = await get_rating(user_id=user_id)
 

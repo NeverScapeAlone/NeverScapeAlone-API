@@ -1,11 +1,4 @@
 import json
-import os
-from cgitb import text
-from datetime import datetime
-from optparse import Option
-from pickletools import optimize
-from pstats import Stats
-from typing import Optional
 
 import api.config as config
 from api.config import redis_client
@@ -15,26 +8,21 @@ from api.database.functions import (
     is_valid_rsn,
     sqlalchemy_result,
     get_match_from_ID,
-    validate_discord,
     redis_decode,
 )
 import logging
-from api.database.models import ActiveMatches, UserQueue, Users, WorldInformation
+from api.database.models import Users
 import api.database.models as models
 from certifi import where
-from fastapi import APIRouter, Header, HTTPException, Query, Request, status
-from fastapi_utils.tasks import repeat_every
+from fastapi import APIRouter, HTTPException, Request
 from h11 import InformationalResponse
 from pydantic import BaseModel
-from pydantic.fields import Field
 from pymysql import Timestamp
-from pyparsing import Opt
-from requests import Response, delete, options, request, session
 from sqlalchemy import TEXT, TIMESTAMP, select, table, tuple_, values
 from sqlalchemy.dialects.mysql import Insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
-from sqlalchemy.sql.expression import Select, insert, select, update
+from sqlalchemy.sql.expression import Select, select, update
 
 router = APIRouter()
 
