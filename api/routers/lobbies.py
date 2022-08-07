@@ -1,8 +1,6 @@
 import json
 import logging
 import random
-import sys
-import time
 import traceback
 
 import api.database.models as models
