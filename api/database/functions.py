@@ -390,7 +390,8 @@ async def update_player_in_group(
     await redis_client.set(name=key, value=str(m.dict()))
 
 
-async def matchID():
+def matchID():
+    time.sleep(1 / 10**9)
     ID = hex(int(time.time() ** 2))[4:-2][::-1]
     ID = "-".join([ID[i : i + 4] for i in range(0, len(ID), 4)])
     return ID
