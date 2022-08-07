@@ -391,7 +391,6 @@ async def update_player_in_group(
 
 
 async def matchID():
-    await asyncio.sleep(1 / 10**9)
     ID = hex(int(time.time() ** 2))[4:-2][::-1]
     ID = "-".join([ID[i : i + 4] for i in range(0, len(ID), 4)])
     return ID
