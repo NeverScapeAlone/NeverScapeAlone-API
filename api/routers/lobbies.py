@@ -552,7 +552,7 @@ async def create_match(request, user_data):
     regions = sub_payload["regions"]
     group_passcode = sub_payload["group_passcode"]
     private = bool(group_passcode)
-    ID = matchID()
+    ID = await matchID()
 
     rating = await get_rating(user_id=user_id)
 
