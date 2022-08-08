@@ -4,7 +4,7 @@ import random
 import traceback
 
 import api.database.models as models
-from api.config import VERSION, redis_client
+from api.config import VERSION, redis_client, DISCORD_WEBHOOK
 from api.database.functions import (
     get_rating,
     ratelimit,
@@ -12,6 +12,7 @@ from api.database.functions import (
     matchID,
     get_party_leader_from_match_ID,
     sanitize,
+    post_match_to_discord,
     user,
     change_rating,
     get_match_from_ID,
@@ -439,6 +440,7 @@ async def websocket_endpoint(
                             "passcode": f"{initial_match.group_passcode}",
                         }
                     )
+                    await post_match_to_discord(match=initial_match)
 
                 case "set_status":
                     if group_identifier == "0":

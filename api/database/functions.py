@@ -3,6 +3,7 @@ import asyncio
 import json
 import logging
 import random
+import aiohttp
 from typing import Tuple
 import re
 import traceback
@@ -17,7 +18,7 @@ from typing import List, Optional
 
 import pandas as pd
 from api.database import models
-from api.config import DEV_MODE, redis_client
+from api.config import DEV_MODE, DISCORD_WEBHOOK, redis_client
 from api.database.database import USERDATA_ENGINE, Engine, EngineType
 from api.database.models import Users, UserToken
 from fastapi import APIRouter, Header, HTTPException, Query, status
@@ -78,6 +79,57 @@ async def verify_ID(user_id):
     if re.fullmatch("^[0-9]{0,64}", user_id):
         return True
     return False
+
+
+async def post_url(route, data):
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url=route, json=data) as resp:
+            response = await resp.text()
+
+
+async def post_match_to_discord(match: models.match):
+
+    match_privacy = "Private" if match.isPrivate else "Public"
+    activity = match.activity.replace("_", " ").title()
+
+    webhook_payload = {
+        "content": f"Updated: <t:{int(time.time())}:R>",
+        "embeds": [
+            {
+                "author": {
+                    "name": f"{match.players[0].login}",
+                    "icon_url": "https://i.imgur.com/dHLO8KM.png",
+                },
+                "title": f"{activity}",
+                "description": f"Match ID: **{match.ID}**",
+                "fields": [
+                    {"name": "Privacy", "value": f"{match_privacy}", "inline": True},
+                    {
+                        "name": "Accounts",
+                        "value": f"{match.requirement.accounts}",
+                        "inline": True,
+                    },
+                    {
+                        "name": "Experience",
+                        "value": f"{match.requirement.experience}",
+                        "inline": True,
+                    },
+                    {
+                        "name": "Split Type",
+                        "value": f"{match.requirement.split_type}",
+                        "inline": True,
+                    },
+                    {
+                        "name": "Regions",
+                        "value": f"{match.requirement.regions}",
+                        "inline": True,
+                    },
+                ],
+            }
+        ],
+    }
+
+    await post_url(route=DISCORD_WEBHOOK, data=webhook_payload)
 
 
 async def get_rating(user_id):
