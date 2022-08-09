@@ -51,15 +51,6 @@ class ConnectionManager:
                 )
                 await websocket.close(code=1000)
                 return
-            if (m.isPrivate) & (m.group_passcode != passcode):
-                await websocket.send_json(
-                    {
-                        "detail": "global message",
-                        "server_message": {"message": "Incorrect Passcode"},
-                    }
-                )
-                await websocket.close(code=1000)
-                return
             if m.ban_list:
                 user_id = await websocket_to_user_id(websocket=websocket)
                 if user_id in m.ban_list:
@@ -71,6 +62,24 @@ class ConnectionManager:
                     )
                     await websocket.close(code=1000)
                     return
+            if (m.isPrivate) & (m.group_passcode != passcode):
+                await websocket.send_json(
+                    {
+                        "detail": "global message",
+                        "server_message": {"message": "Incorrect Passcode"},
+                    }
+                )
+                await websocket.close(code=1000)
+                return
+            if len(m.players) >= int(m.party_members):
+                await websocket.send_json(
+                    {
+                        "detail": "global message",
+                        "server_message": {"message": "Group Full"},
+                    }
+                )
+                await websocket.close(code=1000)
+                return
 
         try:
             self.active_connections[group_identifier].append(websocket)
