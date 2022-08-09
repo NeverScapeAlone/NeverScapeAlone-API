@@ -1,22 +1,23 @@
 import json
 import logging
 import random
+import re
 import traceback
 
 import api.database.models as models
-from api.config import VERSION, redis_client, DISCORD_WEBHOOK
+from api.config import DISCORD_WEBHOOK, VERSION, redis_client
 from api.database.functions import (
-    get_rating,
-    ratelimit,
-    redis_decode,
-    matchID,
-    get_party_leader_from_match_ID,
-    sanitize,
-    post_match_to_discord,
-    user,
     change_rating,
     get_match_from_ID,
+    get_party_leader_from_match_ID,
+    get_rating,
+    matchID,
+    post_match_to_discord,
+    ratelimit,
+    redis_decode,
+    sanitize,
     update_player_in_group,
+    user,
     verify_ID,
     websocket_to_user_id,
 )
@@ -387,10 +388,9 @@ async def websocket_endpoint(
                     if not await ratelimit(connecting_IP=websocket.client.host):
                         continue
                     logger.info(f"{login} -> Search")
-                    search = await sanitize(request["search"])
-                    if not search:
+                    data = await search_match(search=request["search"])
+                    if data is None:
                         continue
-                    data = await search_match(search=search)
                     logger.info(f"{login} <- Search")
                     await websocket.send_json(
                         {
@@ -512,7 +512,11 @@ async def websocket_endpoint(
 
 
 async def search_match(search: str):
-    keys = await redis_client.keys(f"match:*ACTIVITY={search}*")
+    if re.fullmatch("^[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}", search):
+        keys = await redis_client.keys(f"match:ID={search}*")
+    else:
+        search = await sanitize(search)
+        keys = await redis_client.keys(f"match:*ACTIVITY={search}*")
     keys = keys[:50]
     values = await redis_client.mget(keys)
     match_data = await redis_decode(values)
