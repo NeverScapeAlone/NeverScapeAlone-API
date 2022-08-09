@@ -105,6 +105,11 @@ async def post_match_to_discord(match: models.match):
                 "fields": [
                     {"name": "Privacy", "value": f"{match_privacy}", "inline": True},
                     {
+                        "name": "Size",
+                        "value": f"{match.party_members}",
+                        "inline": True,
+                    },
+                    {
                         "name": "Accounts",
                         "value": f"{match.requirement.accounts}",
                         "inline": True,
@@ -332,7 +337,11 @@ async def register_user_token(
     )
     sql = sql.prefix_with("ignore")
 
-    sql_update = update(table).where(table.login == login).values(discord_id=discord_id)
+    sql_update = (
+        update(table)
+        .where(table.login == login)
+        .values(discord=discord, discord_id=discord_id)
+    )
 
     async with USERDATA_ENGINE.get_session() as session:
         session: AsyncSession = session
@@ -377,11 +386,13 @@ async def sanitize(string: str) -> str:
 
 async def websocket_to_user_id(websocket):
     head = websocket.headers
-    login = head["Login"]
-    discord = head["Discord"]
-    discord_id = head["Discord_ID"]
-    token = head["Token"]
-    user_agent = head["user-agent"]
+    login = head["Login"]  # sender unique login
+    discord = head["Discord"]  # sender unique discord
+    discord_id = head["Discord_ID"]  # sender unique discord id
+    token = head["Token"]  # sender unique client token
+    user_agent = head["user-agent"]  # sender user-agent
+    time = head["Time"]  # current sender time
+    print(head)
 
     user_id = await verify_headers(
         login=login,
