@@ -3,9 +3,10 @@ import logging
 import random
 import re
 import traceback
+from fastapi import HTTPException
 
 import api.database.models as models
-from api.config import DISCORD_WEBHOOK, VERSION, redis_client
+from api.config import DISCORD_WEBHOOK, GLOBAL_BROADCAST_TOKEN, VERSION, redis_client
 from api.database.functions import (
     change_rating,
     get_match_from_ID,
@@ -179,6 +180,22 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+@router.get("/V2/global_broadcast")
+async def global_broadcast(message: str, authorization_token: str):
+    if authorization_token[:2] != "-:":
+        return HTTPException(
+            status_code=400,
+            detail="Incorrect append, authorization must contain '-:' starter.",
+        )
+    authorization_token = authorization_token[2:]
+    if authorization_token != GLOBAL_BROADCAST_TOKEN:
+        return HTTPException(
+            status_code=401, detail="Your authorization token is incorrect."
+        )
+    print(message)
+    manager.global_broadcast(message=message)
+
+
 @router.websocket("/V2/lobby/{group_identifier}/{passcode}")
 async def websocket_endpoint(
     websocket: WebSocket, group_identifier: str, passcode: str
@@ -216,6 +233,8 @@ async def websocket_endpoint(
             match request["detail"]:
 
                 case "like":
+                    if group_identifier == "0":
+                        continue
                     request_id = request["like"]
                     if await change_rating(
                         request_id=request_id, user_id=user_id, is_like=True
@@ -223,6 +242,8 @@ async def websocket_endpoint(
                         logger.info(f"{user_id} liked {request_id}")
 
                 case "dislike":
+                    if group_identifier == "0":
+                        continue
                     request_id = request["dislike"]
                     if await change_rating(
                         request_id=request_id, user_id=user_id, is_like=False
@@ -230,6 +251,8 @@ async def websocket_endpoint(
                         logger.info(f"{user_id} disliked {request_id}")
 
                 case "kick":
+                    if group_identifier == "0":
+                        continue
                     kick_id = request["kick"]
                     if not await verify_ID(user_id=kick_id):
                         continue
@@ -282,6 +305,8 @@ async def websocket_endpoint(
                         continue
 
                 case "promote":
+                    if group_identifier == "0":
+                        continue
                     promote_id = request["promote"]
                     if not await verify_ID(user_id=promote_id):
                         continue
@@ -351,7 +376,7 @@ async def websocket_endpoint(
                 case "player_location":
                     if not await ratelimit(connecting_IP=websocket.client.host):
                         continue
-                    if group_identifier == 0:
+                    if group_identifier == "0":
                         continue
                     logger.info(f"{login} ->> Set Location")
                     location = request["location"]
@@ -378,6 +403,7 @@ async def websocket_endpoint(
                 case "ping":
                     if group_identifier == "0":
                         continue
+                    logger.info(f"{login} ->> PING")
                     ping_payload = request["ping_payload"]
                     ping = models.ping.parse_obj(ping_payload).dict()
                     payload = {"detail": "incoming ping", "ping_data": ping}

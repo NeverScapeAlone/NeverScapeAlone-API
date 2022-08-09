@@ -13,6 +13,7 @@ import aioredis
 # load environment variables
 load_dotenv(find_dotenv(), verbose=True)
 sql_uri = os.environ.get("sql_uri")
+GLOBAL_BROADCAST_TOKEN = os.environ.get("global_broadcast_token")
 DISCORD_TOKEN = os.environ.get("discord_route_token")
 DISCORD_WEBHOOK = os.environ.get("discord_webhook")
 REDIS_PASSWORD = os.environ.get("redis_password")

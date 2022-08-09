@@ -14,6 +14,7 @@ jobs:
           echo "${{ secrets.DISCORD_ROUTE_TOKEN}}" >> .env
           echo "${{ secrets.REDIS_PASSWORD}}" >> .env
           echo "${{ secrets.DISCORD_WEBHOOK}}" >> .env
+          echo "${{ secrets.GLOBAL_BROADCAST_TOKEN}}" >> .env
   deploy:
     runs-on: self-hosted
     needs: [checkout]
