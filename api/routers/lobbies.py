@@ -376,13 +376,14 @@ async def websocket_endpoint(
                     )
 
                 case "ping":
-                    if group_identifier != 0:
-                        ping_payload = request["ping_payload"]
-                        ping = models.ping.parse_obj(ping_payload).dict()
-                        payload = {"detail": "incoming ping", "ping_data": ping}
-                        await manager.broadcast(
-                            group_identifier=group_identifier, payload=payload
-                        )
+                    if group_identifier == "0":
+                        continue
+                    ping_payload = request["ping_payload"]
+                    ping = models.ping.parse_obj(ping_payload).dict()
+                    payload = {"detail": "incoming ping", "ping_data": ping}
+                    await manager.broadcast(
+                        group_identifier=group_identifier, payload=payload
+                    )
 
                 case "search_match":
                     if not await ratelimit(connecting_IP=websocket.client.host):
