@@ -192,7 +192,8 @@ async def global_broadcast(message: str, authorization_token: str):
         return HTTPException(
             status_code=401, detail="Your authorization token is incorrect."
         )
-    print(message)
+    if message == GLOBAL_BROADCAST_TOKEN:
+        return HTTPException(status_code=400, detail="You didn't mean to send that...")
     manager.global_broadcast(message=message)
 
 
