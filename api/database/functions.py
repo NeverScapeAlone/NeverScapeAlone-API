@@ -3,21 +3,22 @@ import asyncio
 import json
 import logging
 import random
+import aiohttp
+from typing import Tuple
 import re
 import traceback
+import time
 from asyncio.tasks import create_task
-from atexit import register
 from cgitb import text
 from collections import UserDict, namedtuple
 from datetime import datetime, timedelta
 from optparse import Option
-from pickletools import optimize
 from pstats import Stats
 from typing import List, Optional
-from urllib.request import Request
 
 import pandas as pd
-from api.config import DEV_MODE, redis_client
+from api.database import models
+from api.config import DEV_MODE, DISCORD_WEBHOOK, redis_client
 from api.database.database import USERDATA_ENGINE, Engine, EngineType
 from api.database.models import Users, UserToken
 from fastapi import APIRouter, Header, HTTPException, Query, status
@@ -73,7 +74,80 @@ async def redis_decode(bytes_encoded) -> list:
     return [ast.literal_eval(bytes_encoded.decode("utf-8"))]
 
 
-async def ratelimit(connecting_IP, max_calls_second):
+async def verify_ID(user_id):
+    user_id = str(user_id)
+    if re.fullmatch("^[0-9]{0,64}", user_id):
+        return True
+    return False
+
+
+async def post_url(route, data):
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url=route, json=data) as resp:
+            response = await resp.text()
+
+
+async def post_match_to_discord(match: models.match):
+
+    match_privacy = "Private" if match.isPrivate else "Public"
+    activity = match.activity.replace("_", " ").title()
+
+    webhook_payload = {
+        "content": f"Updated: <t:{int(time.time())}:R>",
+        "embeds": [
+            {
+                "author": {
+                    "name": f"{match.players[0].login}",
+                    "icon_url": "https://i.imgur.com/dHLO8KM.png",
+                },
+                "title": f"{activity}",
+                "description": f"Match ID: **{match.ID}**",
+                "fields": [
+                    {"name": "Privacy", "value": f"{match_privacy}", "inline": True},
+                    {
+                        "name": "Size",
+                        "value": f"{match.party_members}",
+                        "inline": True,
+                    },
+                    {
+                        "name": "Accounts",
+                        "value": f"{match.requirement.accounts}",
+                        "inline": True,
+                    },
+                    {
+                        "name": "Experience",
+                        "value": f"{match.requirement.experience}",
+                        "inline": True,
+                    },
+                    {
+                        "name": "Split Type",
+                        "value": f"{match.requirement.split_type}",
+                        "inline": True,
+                    },
+                    {
+                        "name": "Regions",
+                        "value": f"{match.requirement.regions}",
+                        "inline": True,
+                    },
+                ],
+            }
+        ],
+    }
+
+    await post_url(route=DISCORD_WEBHOOK, data=webhook_payload)
+
+
+async def get_rating(user_id):
+    keys = await redis_client.keys(f"rating:{user_id}:*")
+    if not keys:
+        return -1
+    rating_values = await redis_client.mget(keys)
+    rating_list = [int(rating) for rating in rating_values]
+    return int((rating_list.count(1) / len(rating_list)) * 50)
+
+
+async def ratelimit(connecting_IP):
+    MAX_CALLS_SECOND = 10
     """load key formats"""
     key = f"ratelimit_call:{connecting_IP}"
     manager_key = f"ratelimit_manager:{connecting_IP}"
@@ -92,7 +166,7 @@ async def ratelimit(connecting_IP, max_calls_second):
         await redis_client.set(name=key, value=int(1), ex=1)
         return True
 
-    if int(data) > max_calls_second:
+    if int(data) > MAX_CALLS_SECOND:
         """exceeded per second call rate, elevate to rate manager"""
         manager_data = await redis_client.get(manager_key)
         if manager_data is None:
@@ -145,7 +219,7 @@ async def validate_discord(discord: str):
         if discord[-5] != "#":
             discord = discord[:-4] + "#" + discord[-4:]
 
-    if len(discord[:-5]) >= 1 & len(discord[:-5]) <= 32:
+    if len(discord[:-5]) >= 1 & len(discord[:-5]) <= 64:
         return discord
 
     return False
@@ -157,15 +231,32 @@ async def verify_token_construction(token: str) -> bool:
     return True
 
 
-async def verify_headers(login: str, discord: str, token: str, user_agent: str) -> int:
+async def verify_discord_id(discord_id: str) -> bool:
+    if discord_id == "NULL":
+        return True
+    if not re.fullmatch("^[\d]*", discord_id):
+        return False
+    return True
+
+
+async def verify_headers(
+    login: str, discord: str, discord_id: str, token: str, user_agent: str
+) -> int:
 
     if not await verify_user_agent(user_agent=user_agent):
+        logging.warn(f"Bad user agent {user_agent}")
         return None
 
     if not await verify_token_construction(token=token):
+        logging.warn(f"Bad token {token}")
         return None
 
     if not await is_valid_rsn(login=login):
+        logging.warn(f"Bad rsn {login}")
+        return None
+
+    if not await verify_discord_id(discord_id=discord_id):
+        logging.warn(f"Bad discord id {discord_id}")
         return None
 
     discord = await validate_discord(discord=discord)
@@ -173,7 +264,8 @@ async def verify_headers(login: str, discord: str, token: str, user_agent: str) 
     """check redis cache"""
     rlogin = login.replace(" ", "_")
     rdiscord = "None" if discord is None else discord
-    key = f"{rlogin}:{token}:{rdiscord}"
+    rdiscord_id = "None" if discord_id is None else discord_id
+    key = f"{rlogin}:{token}:{rdiscord_id}"
     user_id = await redis_client.get(name=key)
     if user_id is not None:
         user_id = int(user_id)
@@ -183,6 +275,7 @@ async def verify_headers(login: str, discord: str, token: str, user_agent: str) 
     sql = sql.where(UserToken.token == token)
     sql = sql.where(Users.login == login)
     sql = sql.where(Users.discord == discord)
+    sql = sql.where(Users.discord_id == discord_id)
     sql = sql.join(Users, UserToken.user_id == Users.user_id)
 
     async with USERDATA_ENGINE.get_session() as session:
@@ -193,7 +286,9 @@ async def verify_headers(login: str, discord: str, token: str, user_agent: str) 
             data = data.rows2dict()
 
     if len(data) == 0:
-        user_id = register_user_token(login=login, discord=discord, token=token)
+        user_id = await register_user_token(
+            login=login, discord=discord, discord_id=discord_id, token=token
+        )
         if user_id is None:
             return None
     else:
@@ -203,12 +298,50 @@ async def verify_headers(login: str, discord: str, token: str, user_agent: str) 
     return user_id
 
 
-async def register_user_token(login: str, discord: str, token: str) -> json:
+async def user(user_id: int) -> str:
+    """check redis cache"""
+    key = f"user_alert:{user_id}"
+    alerts = await redis_client.get(name=key)
+    if alerts is not None:
+        alerts = await redis_decode(alerts)
+        return alerts[0]
+
+    sql = select(Users)
+    sql = sql.where(Users.user_id == user_id)
+
+    async with USERDATA_ENGINE.get_session() as session:
+        session: AsyncSession = session
+        async with session.begin():
+            request = await session.execute(sql)
+            data = sqlalchemy_result(request)
+            data = data.rows2dict()
+
+    if len(data) == 0:
+        if data is None:
+            return None
+    else:
+        data = data[0]
+
+    del data["timestamp"]
+
+    await redis_client.set(name=key, value=str(data), ex=60)
+    return data
+
+
+async def register_user_token(
+    login: str, discord: str, discord_id: str, token: str
+) -> json:
     table = Users
-    sql = insert(table).values({"login": login, "discord": discord})
+    sql = insert(table).values(
+        {"login": login, "discord": discord, "discord_id": discord_id}
+    )
     sql = sql.prefix_with("ignore")
 
-    sql_update = update(table).where(table.login == login).values(discord=discord)
+    sql_update = (
+        update(table)
+        .where(table.login == login)
+        .values(discord=discord, discord_id=discord_id)
+    )
 
     async with USERDATA_ENGINE.get_session() as session:
         session: AsyncSession = session
@@ -253,18 +386,90 @@ async def sanitize(string: str) -> str:
 
 async def websocket_to_user_id(websocket):
     head = websocket.headers
-    login = head["Login"]
-    discord = head["Discord"]
-    token = head["Token"]
-    user_agent = head["user-agent"]
+    login = head["Login"]  # sender unique login
+    discord = head["Discord"]  # sender unique discord
+    discord_id = head["Discord_ID"]  # sender unique discord id
+    token = head["Token"]  # sender unique client token
+    user_agent = head["user-agent"]  # sender user-agent
+    time = head["Time"]  # current sender time
+    print(head)
 
     user_id = await verify_headers(
         login=login,
         discord=discord,
+        discord_id=discord_id,
         token=token,
         user_agent=user_agent,
     )
     return user_id
+
+
+async def update_player_in_group(
+    group_identifier: int, player_to_update: models.player
+):
+    key, m = await get_match_from_ID(group_identifier)
+    if not m:
+        return
+    for idx, player in enumerate(m.players):
+        if player.user_id == player_to_update.user_id:
+            break
+    m.players[idx] = player_to_update
+    await redis_client.set(name=key, value=m.dict())
+
+
+async def get_party_leader_from_match_ID(group_identifier: int) -> models.player:
+    key, m = await get_match_from_ID(group_identifier)
+    if not m:
+        return
+    for player in m.players:
+        if player.isPartyLeader:
+            return player
+    return None
+
+
+async def change_rating(request_id, user_id: int, is_like):
+    # Prevent user from rating self
+    if request_id == str(user_id):
+        return False
+    # Verify that incoming ID is of correct format
+    if not await verify_ID(user_id=request_id):
+        return False
+    key = f"rating:{request_id}:{user_id}"
+    vote = 1 if is_like else 0
+    await redis_client.set(name=key, value=int(vote))
+    return True
+
+
+async def update_player_in_group(
+    group_identifier: int, player_to_update: models.player
+):
+    key, m = await get_match_from_ID(group_identifier)
+    if not m:
+        return
+    for idx, player in enumerate(m.players):
+        if player.user_id == player_to_update.user_id:
+            break
+    m.players[idx] = player_to_update
+    await redis_client.set(name=key, value=str(m.dict()))
+
+
+def matchID():
+    time.sleep(1 / 10**9)
+    ID = hex(int(time.time() ** 2))[4:-2][::-1]
+    ID = "-".join([ID[i : i + 4] for i in range(0, len(ID), 4)])
+    return ID
+
+
+async def get_match_from_ID(group_identifier):
+    pattern = f"match:ID={group_identifier}*"
+    keys = await redis_client.keys(pattern)
+    if not keys:
+        return None, None
+    key = keys[0]
+    match = await redis_client.get(key)
+    data = await redis_decode(bytes_encoded=match)
+    m = models.match.parse_obj(data[0])
+    return key, m
 
 
 async def load_redis_from_sql():

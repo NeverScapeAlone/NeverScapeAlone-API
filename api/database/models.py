@@ -10,11 +10,7 @@ from dataclasses import replace
 from datetime import datetime
 from email.policy import default
 from multiprocessing.sharedctypes import Value
-from optparse import Option
-from pickletools import optimize
-from pstats import Stats
 from re import L, sub
-from sys import int_info
 from tokenize import group
 from typing import List, Optional, Text
 from urllib.request import Request
@@ -59,6 +55,7 @@ class Users(Base):
     user_id = Column(Integer, primary_key=True)
     login = Column(VARCHAR(64))
     discord = Column(VARCHAR(64))
+    discord_id = Column(TEXT)
     verified = Column(Boolean, default=False)
     runewatch = Column(TEXT)
     wdr = Column(TEXT)
@@ -162,6 +159,18 @@ class search_match_info(BaseModel):
     party_leader: str
 
 
+class location(BaseModel):
+    """location model"""
+
+    x: int
+    y: int
+    regionX: int
+    regionY: int
+    regionID: int
+    plane: int
+    world: int
+
+
 class all_search_match_info(BaseModel):
     search_matches: List[search_match_info]
 
@@ -210,12 +219,16 @@ class player(BaseModel):
     discord: str
     stats: Optional[stats]
     status: Optional[status]
+    location: Optional[location]
     runewatch: Optional[str]
     wdr: Optional[str]
     verified: Optional[bool]
+    rating: Optional[int]
+    kick_list: Optional[list[int]]
+    promote_list: Optional[list[int]]
     user_id: int
     login: str
-    isPartyLeader: bool
+    isPartyLeader: Optional[bool] = False
 
 
 class requirement(BaseModel):
@@ -227,6 +240,14 @@ class requirement(BaseModel):
     regions: str
 
 
+class active_match_discord(BaseModel):
+    """active match model"""
+
+    discord_invite: Optional[str]
+    player_count: Optional[int]
+    ID: str
+
+
 class match(BaseModel):
     """match model"""
 
@@ -236,5 +257,23 @@ class match(BaseModel):
     party_members: str
     group_passcode: str
     isPrivate: bool
+    ban_list: Optional[list[int]]
     requirement: requirement
     players: list[player]
+
+
+class ping(BaseModel):
+    """ping model"""
+
+    username: str
+    x: int
+    y: int
+    regionX: int
+    regionY: int
+    regionID: int
+    plane: int
+    color_r: int
+    color_g: int
+    color_b: int
+    color_alpha: int
+    isAlert: bool

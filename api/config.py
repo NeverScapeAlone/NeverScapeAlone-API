@@ -14,10 +14,11 @@ import aioredis
 load_dotenv(find_dotenv(), verbose=True)
 sql_uri = os.environ.get("sql_uri")
 DISCORD_TOKEN = os.environ.get("discord_route_token")
+DISCORD_WEBHOOK = os.environ.get("discord_webhook")
 REDIS_PASSWORD = os.environ.get("redis_password")
 RATE_LIMIT_MINUTE = 120
 RATE_LIMIT_HOUR = 7200
-VERSION = "v2.0.1-alpha"
+VERSION = "v2.3.0-alpha"
 DEV_MODE = False
 
 redis_client = aioredis.from_url(
