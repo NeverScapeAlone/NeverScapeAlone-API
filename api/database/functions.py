@@ -13,6 +13,7 @@ from cgitb import text
 from collections import UserDict, namedtuple
 from datetime import datetime, timedelta
 from optparse import Option
+from better_profanity import profanity
 from pstats import Stats
 from typing import List, Optional
 
@@ -87,10 +88,17 @@ async def post_url(route, data):
             response = await resp.text()
 
 
+async def clean_notes(notes: str):
+    notes = profanity.censor(notes)
+    notes = notes.strip()
+    return notes
+
+
 async def post_match_to_discord(match: models.match):
 
     match_privacy = "Private" if match.isPrivate else "Public"
     activity = match.activity.replace("_", " ").title()
+    notes = await clean_notes(match.notes)
 
     webhook_payload = {
         "content": f"Updated: <t:{int(time.time())}:R>",
@@ -127,6 +135,11 @@ async def post_match_to_discord(match: models.match):
                     {
                         "name": "Regions",
                         "value": f"{match.requirement.regions}",
+                        "inline": True,
+                    },
+                    {
+                        "name": "Notes",
+                        "value": f"{notes}",
                         "inline": True,
                     },
                 ],
