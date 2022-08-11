@@ -15,6 +15,7 @@ from api.database.functions import (
     matchID,
     post_match_to_discord,
     ratelimit,
+    clean_notes,
     redis_decode,
     sanitize,
     update_player_in_group,
@@ -562,6 +563,7 @@ async def search_match(search: str):
         val = models.search_match_info(
             ID=str(match["ID"]),
             activity=match["activity"],
+            notes=match["notes"],
             party_members=match["party_members"],
             isPrivate=match["isPrivate"],
             experience=requirement["experience"],
@@ -591,6 +593,7 @@ async def create_match(request, user_data):
     split_type = sub_payload["split_type"]
     accounts = sub_payload["accounts"]
     regions = sub_payload["regions"]
+    notes = await clean_notes(sub_payload["notes"])
     group_passcode = sub_payload["group_passcode"]
     private = bool(group_passcode)
     ID = matchID()
@@ -602,6 +605,7 @@ async def create_match(request, user_data):
         activity=activity,
         party_members=party_members,
         isPrivate=private,
+        notes=notes,
         group_passcode=group_passcode,
         requirement=models.requirement(
             experience=experience,
