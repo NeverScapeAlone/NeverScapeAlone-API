@@ -89,6 +89,9 @@ async def post_url(route, data):
 
 
 async def clean_notes(notes: str):
+    if len(notes) > 200:
+        notes = notes[:200]
+        notes += "..."
     notes = profanity.censor(notes)
     notes = notes.strip()
     return notes
@@ -139,7 +142,7 @@ async def post_match_to_discord(match: models.match):
                     },
                     {
                         "name": "Notes",
-                        "value": f"{notes}",
+                        "value": f"`{notes}`",
                         "inline": True,
                     },
                 ],
