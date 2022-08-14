@@ -93,6 +93,7 @@ async def clean_notes(notes: str):
         notes = notes[:200]
         notes += "..."
     notes = profanity.censor(notes)
+    notes = re.sub("<[^>]*>", "", notes)
     notes = notes.strip()
     return notes
 
