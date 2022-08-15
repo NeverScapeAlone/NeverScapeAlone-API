@@ -170,3 +170,32 @@ async def post_invites(token: str, request: Request) -> json:
         m.discord_invite = am.discord_invite
         await redis_client.set(name=key, value=str(m.dict()))
         logger.info(f"Invite {am.discord_invite} created for {am.ID}")
+
+
+@router.get("/V1/discord/delete-match", tags=["discord"])
+async def delete_match(token: str, match_id: str) -> json:
+    if token != config.DISCORD_TOKEN:
+        raise HTTPException(
+            status_code=202,
+            detail=f"bad token",
+        )
+    key, m = await get_match_from_ID(group_identifier=match_id)
+    if not key:
+        return "This match does not exist."
+    if await redis_client.delete(key):
+        return f"{match_id} was deleted."
+
+
+@router.get("/V1/discord/get-match-information", tags=["discord"])
+async def delete_match(token: str, match_id: str) -> json:
+    if token != config.DISCORD_TOKEN:
+        raise HTTPException(
+            status_code=202,
+            detail=f"bad token",
+        )
+    key, m = await get_match_from_ID(group_identifier=match_id)
+    if not key:
+        return "This match does not exist."
+    response = json.dumps(m.dict())
+    response = json.loads(response)
+    return response
