@@ -93,6 +93,7 @@ async def clean_notes(notes: str):
         notes = notes[:200]
         notes += "..."
     notes = profanity.censor(notes)
+    notes = re.sub("<[^>]*>", "", notes)
     notes = notes.strip()
     return notes
 
@@ -226,18 +227,10 @@ async def is_valid_rsn(login: str) -> bool:
 
 
 async def validate_discord(discord: str):
-    discord = discord.removeprefix("@")
-
-    if discord == ("UserName#0000" or "NULL"):
-        return None
-
-    if re.fullmatch(".*[0-9]{4}$", discord):
-        if discord[-5] != "#":
-            discord = discord[:-4] + "#" + discord[-4:]
-
-    if len(discord[:-5]) >= 1 & len(discord[:-5]) <= 64:
+    if re.fullmatch(
+        "^(?:[A-Za-z\d+/]{4})*(?:[A-Za-z\d+/]{3}=|[A-Za-z\d+/]{2}==)?$", discord
+    ):
         return discord
-
     return False
 
 
@@ -279,7 +272,6 @@ async def verify_headers(
 
     """check redis cache"""
     rlogin = login.replace(" ", "_")
-    rdiscord = "None" if discord is None else discord
     rdiscord_id = "None" if discord_id is None else discord_id
     key = f"{rlogin}:{token}:{rdiscord_id}"
     user_id = await redis_client.get(name=key)
@@ -501,7 +493,8 @@ async def load_redis_from_sql():
     mapping = dict()
     for value in data:
         user_id = value["user_id"]
-        key = f"user:{user_id}"
+        login = value["login"]
+        key = f"user:{login}:{user_id}"
         del value["timestamp"]
         mapping[key] = str(value)
     await redis_client.mset(mapping=mapping)
