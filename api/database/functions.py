@@ -493,7 +493,8 @@ async def load_redis_from_sql():
     mapping = dict()
     for value in data:
         user_id = value["user_id"]
-        key = f"user:{user_id}"
+        login = value["login"]
+        key = f"user:{login}:{user_id}"
         del value["timestamp"]
         mapping[key] = str(value)
     await redis_client.mset(mapping=mapping)

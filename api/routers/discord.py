@@ -199,3 +199,21 @@ async def delete_match(token: str, match_id: str) -> json:
     response = json.dumps(m.dict())
     response = json.loads(response)
     return response
+
+
+@router.get("/V1/discord/whois", tags=["discord"])
+async def whois(token: str, login: str) -> json:
+    if token != config.DISCORD_TOKEN:
+        raise HTTPException(
+            status_code=202,
+            detail=f"bad token",
+        )
+    keys = await redis_client.keys(f"user:{login}:*")
+    if not keys:
+        return "This user does not exist in our system, are you sure that you have entered the name exactly as seen?"
+    values = await redis_client.mget(keys)
+    data = await redis_decode(values)
+    discord_id = data[0]["discord_id"]
+    if (discord_id is None) or (discord_id is "NULL"):
+        return "This user exists, but we do not know their discord."
+    return f"{login}'s discord is <@{discord_id}>"
