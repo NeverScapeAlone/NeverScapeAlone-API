@@ -96,6 +96,10 @@ class ConnectionManager:
         """disconnect current socket"""
         login = websocket.headers["Login"]
         user_id = await websocket_to_user_id(websocket=websocket)
+
+        if group_identifier not in self.active_connections:
+            return
+
         self.active_connections[group_identifier].remove(websocket)
 
         if group_identifier != "0":
