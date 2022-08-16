@@ -138,6 +138,8 @@ async def get_active_matches(token: str) -> json:
         return {"active_matches_discord": None}
 
     data = await redis_client.mget(keys=keys)
+    if not data:
+        return
     cleaned = await redis_decode(bytes_encoded=data)
 
     active_matches_discord = []
@@ -167,6 +169,8 @@ async def post_invites(token: str, request: Request) -> json:
     for match in payload:
         am = models.active_match_discord.parse_obj(match)
         key, m = await get_match_from_ID(group_identifier=am.ID)
+        if not key:
+            continue
         m.discord_invite = am.discord_invite
         await redis_client.set(name=key, value=str(m.dict()))
         logger.info(f"Invite {am.discord_invite} created for {am.ID}")
@@ -212,8 +216,10 @@ async def whois(token: str, login: str) -> json:
     if not keys:
         return "This user does not exist in our system, are you sure that you have entered the name exactly as seen?"
     values = await redis_client.mget(keys)
+    if not values:
+        return "There was an unforseen error in finding this user's discord."
     data = await redis_decode(values)
     discord_id = data[0]["discord_id"]
-    if (discord_id is None) or (discord_id is "NULL"):
+    if (not discord_id) or (discord_id == "NULL"):
         return "This user exists, but we do not know their discord."
     return f"{login}'s discord is <@{discord_id}>"

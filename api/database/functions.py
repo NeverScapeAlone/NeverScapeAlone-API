@@ -475,6 +475,8 @@ async def get_match_from_ID(group_identifier):
         return None, None
     key = keys[0]
     match = await redis_client.get(key)
+    if not match:
+        return None, None
     data = await redis_decode(bytes_encoded=match)
     m = models.match.parse_obj(data[0])
     return key, m

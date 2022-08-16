@@ -551,6 +551,8 @@ async def search_match(search: str):
         keys = await redis_client.keys(f"match:*ACTIVITY={search}*")
     keys = keys[:50]
     values = await redis_client.mget(keys)
+    if not values:
+        return None
     match_data = await redis_decode(values)
 
     search_matches = []
