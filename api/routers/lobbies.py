@@ -4,6 +4,7 @@ import random
 import re
 import traceback
 from fastapi import HTTPException
+import websockets
 
 import api.database.models as models
 from api.config import DISCORD_WEBHOOK, GLOBAL_BROADCAST_TOKEN, VERSION, redis_client
@@ -40,6 +41,12 @@ class ConnectionManager:
 
         if not await ratelimit(connecting_IP=websocket.client.host):
             return
+
+        # catch statement for if the group already exists, and a connection has already been made, should prevent connection stacking.
+        if group_identifier in list(self.active_connections.keys()):
+            if websocket in self.active_connections[group_identifier]:
+                logger.info(f"{login} >>< {group_identifier}")
+                return
 
         login = websocket.headers["Login"]
 
@@ -95,6 +102,10 @@ class ConnectionManager:
         """disconnect current socket"""
         login = websocket.headers["Login"]
         user_id = await websocket_to_user_id(websocket=websocket)
+
+        if group_identifier not in list(self.active_connections.keys()):
+            return
+
         self.active_connections[group_identifier].remove(websocket)
 
         if group_identifier != "0":
@@ -534,6 +545,10 @@ async def websocket_endpoint(
                 case _:
                     continue
 
+    except websockets.exceptions.ConnectionClosedOK:
+        logger.debug(f"{websocket.client.host} => Normal Socket Closure")
+    except websockets.exceptions.ConnectionClosedError:
+        logger.debug(f"{websocket.client.host} => Odd closure, not a concern.")
     except Exception as e:
         logger.debug(f"{websocket.client.host} => {e}")
         print(traceback.format_exc())
@@ -548,6 +563,8 @@ async def search_match(search: str):
         keys = await redis_client.keys(f"match:*ACTIVITY={search}*")
     keys = keys[:50]
     values = await redis_client.mget(keys)
+    if not values:
+        return None
     match_data = await redis_decode(values)
 
     search_matches = []
