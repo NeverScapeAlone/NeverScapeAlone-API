@@ -556,7 +556,7 @@ async def websocket_endpoint(
 
 
 async def search_match(search: str):
-    if re.fullmatch("^[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}", search):
+    if re.fullmatch("^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}", search):
         keys = await redis_client.keys(f"match:ID={search}*")
     else:
         search = await sanitize(search)

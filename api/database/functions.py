@@ -460,13 +460,24 @@ async def update_player_in_group(
     m.players[idx] = player_to_update
     await redis_client.set(name=key, value=str(m.dict()))
 
+def encode(num):
+    alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    if num == 0:
+        return alphabet[0]
+    arr = []
+    arr_append = arr.append
+    _divmod = divmod
+    base = len(alphabet)
+    while num:
+        num, rem = _divmod(num, base)
+        arr_append(alphabet[rem])
+    arr.reverse()
+    return ''.join(arr)
 
 def matchID():
-    time.sleep(1 / 10**9)
-    ID = hex(int(time.time() ** 2))[4:-2][::-1]
+    ID = encode(time.time_ns())[3:][::-1]
     ID = "-".join([ID[i : i + 4] for i in range(0, len(ID), 4)])
     return ID
-
 
 async def get_match_from_ID(group_identifier):
     pattern = f"match:ID={group_identifier}*"
