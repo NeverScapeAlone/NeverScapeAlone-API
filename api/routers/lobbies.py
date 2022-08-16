@@ -537,6 +537,8 @@ async def websocket_endpoint(
 
     except websockets.exceptions.ConnectionClosedOK:
         logger.debug(f"{websocket.client.host} => Normal Socket Closure")
+    except websockets.exceptions.ConnectionClosedError:
+        logger.debug(f"{websocket.client.host} => Odd closure, not a concern.")
     except Exception as e:
         logger.debug(f"{websocket.client.host} => {e}")
         print(traceback.format_exc())
