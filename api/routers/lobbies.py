@@ -4,6 +4,7 @@ import random
 import re
 import traceback
 from fastapi import HTTPException
+import websockets
 
 import api.database.models as models
 from api.config import DISCORD_WEBHOOK, GLOBAL_BROADCAST_TOKEN, VERSION, redis_client
@@ -534,6 +535,8 @@ async def websocket_endpoint(
                 case _:
                     continue
 
+    except websockets.exceptions.ConnectionClosedOK:
+        logger.debug(f"{websocket.client.host} => Normal Socket Closure")
     except Exception as e:
         logger.debug(f"{websocket.client.host} => {e}")
         print(traceback.format_exc())
