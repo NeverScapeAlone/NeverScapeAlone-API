@@ -7,7 +7,13 @@ from fastapi import HTTPException
 import websockets
 
 import api.database.models as models
-from api.config import DISCORD_WEBHOOK, GLOBAL_BROADCAST_TOKEN, VERSION, redis_client
+from api.config import (
+    DISCORD_WEBHOOK,
+    GLOBAL_BROADCAST_TOKEN,
+    VERSION,
+    redis_client,
+    MATCH_VERSION,
+)
 from api.database.functions import (
     change_rating,
     get_match_from_ID,
@@ -159,7 +165,6 @@ class ConnectionManager:
             m.ban_list = [player.user_id]
         else:
             m.ban_list.append(player.user_id)
-
         await redis_client.set(name=key, value=str(m.dict()))
 
         logger.info(f"{user_to_disconnect.login} <<K {group_identifier}")
@@ -235,7 +240,6 @@ async def websocket_endpoint(
         while True:
             try:
                 request = await websocket.receive_json()
-                print(request)
             except Exception as e:
                 logger.debug(f"{login} => {e}")
                 await manager.disconnect(
@@ -404,11 +408,9 @@ async def websocket_endpoint(
                         if player.user_id == user_id:
                             i = idx
                     m.players[i].location = location
-
                     await redis_client.set(name=key, value=str(m.dict()))
 
                     payload = {"detail": "match update", "match_data": m.dict()}
-
                     await manager.broadcast(
                         group_identifier=group_identifier, payload=payload
                     )
@@ -510,11 +512,9 @@ async def websocket_endpoint(
                         if player.user_id == user_id:
                             i = idx
                     m.players[i].status = status_val
-
                     await redis_client.set(name=key, value=str(m.dict()))
 
                     payload = {"detail": "match update", "match_data": m.dict()}
-
                     await manager.broadcast(
                         group_identifier=group_identifier, payload=payload
                     )
@@ -547,8 +547,10 @@ async def websocket_endpoint(
 
     except websockets.exceptions.ConnectionClosedOK:
         logger.debug(f"{websocket.client.host} => Normal Socket Closure")
+        await manager.disconnect(websocket=websocket, group_identifier=group_identifier)
     except websockets.exceptions.ConnectionClosedError:
         logger.debug(f"{websocket.client.host} => Odd closure, not a concern.")
+        await manager.disconnect(websocket=websocket, group_identifier=group_identifier)
     except Exception as e:
         logger.debug(f"{websocket.client.host} => {e}")
         print(traceback.format_exc())
@@ -588,6 +590,7 @@ async def search_match(search: str):
             accounts=requirement["accounts"],
             regions=requirement["regions"],
             player_count=str(len(match["players"])),
+            match_version=match["match_version"],
             party_leader=party_leader,
         )
         search_matches.append(val)
@@ -614,6 +617,7 @@ async def create_match(request, user_data):
     group_passcode = sub_payload["group_passcode"]
     private = bool(group_passcode)
     ID = matchID()
+    match_version = MATCH_VERSION
 
     rating = await get_rating(user_id=user_id)
 
@@ -624,6 +628,7 @@ async def create_match(request, user_data):
         isPrivate=private,
         notes=notes,
         group_passcode=group_passcode,
+        match_version=match_version,
         requirement=models.requirement(
             experience=experience,
             split_type=split_type,

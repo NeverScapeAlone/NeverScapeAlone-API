@@ -398,9 +398,9 @@ async def websocket_to_user_id(websocket):
     discord = head["Discord"]  # sender unique discord
     discord_id = head["Discord_ID"]  # sender unique discord id
     token = head["Token"]  # sender unique client token
-    user_agent = head["user-agent"]  # sender user-agent
+    user_agent = head["User-Agent"]  # sender user-agent
+    plugin_version = head["Version"]  # sender plugin version
     time = head["Time"]  # current sender time
-    print(head)
 
     user_id = await verify_headers(
         login=login,
@@ -460,6 +460,7 @@ async def update_player_in_group(
     m.players[idx] = player_to_update
     await redis_client.set(name=key, value=str(m.dict()))
 
+
 def encode(num):
     alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
     if num == 0:
@@ -472,12 +473,14 @@ def encode(num):
         num, rem = _divmod(num, base)
         arr_append(alphabet[rem])
     arr.reverse()
-    return ''.join(arr)
+    return "".join(arr)
+
 
 def matchID():
     ID = encode(time.time_ns())[3:][::-1]
     ID = "-".join([ID[i : i + 4] for i in range(0, len(ID), 4)])
     return ID
+
 
 async def get_match_from_ID(group_identifier):
     pattern = f"match:ID={group_identifier}*"
