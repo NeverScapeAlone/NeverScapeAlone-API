@@ -19,8 +19,8 @@ DISCORD_WEBHOOK = os.environ.get("discord_webhook")
 REDIS_PASSWORD = os.environ.get("redis_password")
 RATE_LIMIT_MINUTE = 120
 RATE_LIMIT_HOUR = 7200
-VERSION = "v2.8.0-alpha"
-MATCH_VERSION = "v2.11.0-alpha"
+VERSION = "v2.8.1-alpha"
+MATCH_VERSION = "v2.11.1-alpha"
 DEV_MODE = False
 
 redis_client = aioredis.from_url(
