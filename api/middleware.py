@@ -1,10 +1,8 @@
 import logging
 import time
 
-from fastapi import Request, HTTPException
+from fastapi import Request
 from fastapi.responses import JSONResponse
-from starlette.responses import Response
-from urllib3 import HTTPResponse
 
 from api.config import app, redis_client, RATE_LIMIT_MINUTE, RATE_LIMIT_HOUR
 import json

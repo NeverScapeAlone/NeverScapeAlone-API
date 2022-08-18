@@ -2,8 +2,7 @@ import json
 
 import api.config as config
 from api.config import redis_client
-import pandas as pd
-from api.database.functions import (
+from api.utilities.utils import (
     USERDATA_ENGINE,
     is_valid_rsn,
     sqlalchemy_result,
@@ -13,16 +12,10 @@ from api.database.functions import (
 import logging
 from api.database.models import Users
 import api.database.models as models
-from certifi import where
 from fastapi import APIRouter, HTTPException, Request
-from h11 import InformationalResponse
-from pydantic import BaseModel
-from pymysql import Timestamp
-from sqlalchemy import TEXT, TIMESTAMP, select, table, tuple_, values
-from sqlalchemy.dialects.mysql import Insert
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
-from sqlalchemy.sql.expression import Select, select, update
+from sqlalchemy.sql.expression import select, update
 
 router = APIRouter()
 
