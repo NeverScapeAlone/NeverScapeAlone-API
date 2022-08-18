@@ -4,50 +4,31 @@ import json
 import logging
 import random
 import aiohttp
-from typing import Tuple
 import re
 import traceback
-from fastapi import APIRouter, WebSocket
+from fastapi import WebSocket
 import time
 from asyncio.tasks import create_task
 from cgitb import text
-from collections import UserDict, namedtuple
-from datetime import datetime, timedelta
-from optparse import Option
+from collections import namedtuple
 from better_profanity import profanity
-from pstats import Stats
-from typing import List, Optional
+from typing import Optional
 
-import pandas as pd
 from api.database import models
-from api.config import DEV_MODE, DISCORD_WEBHOOK, MATCH_VERSION, redis_client
-from api.database.database import USERDATA_ENGINE, Engine, EngineType
+from api.config import DISCORD_WEBHOOK, MATCH_VERSION, redis_client
+from api.database.database import USERDATA_ENGINE, Engine
 from api.database.models import Users, UserToken
-from fastapi import APIRouter, Header, HTTPException, Query, status
-from h11 import InformationalResponse
+from fastapi import APIRouter
 from pydantic import BaseModel
-from pydantic.fields import Field
-from pymysql import Timestamp
-from pyparsing import Opt
-from requests import request
 from sqlalchemy import (
-    BIGINT,
-    DATETIME,
-    TIMESTAMP,
-    VARCHAR,
-    BigInteger,
     Text,
-    func,
-    or_,
     select,
     text,
 )
-from sqlalchemy.dialects.mysql import Insert
 from sqlalchemy.exc import InternalError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncResult, AsyncSession
-from sqlalchemy.orm import aliased
-from sqlalchemy.sql import case, text
-from sqlalchemy.sql.expression import Select, delete, insert, select, update
+from sqlalchemy.sql import text
+from sqlalchemy.sql.expression import Select, insert, select, update
 
 logger = logging.getLogger(__name__)
 
@@ -214,8 +195,6 @@ async def ratelimit(connecting_IP):
 
 
 async def verify_user_agent(user_agent):
-    if DEV_MODE == True:
-        return True
     if not re.fullmatch("^RuneLite", user_agent[:8]):
         return False
     return True
@@ -534,6 +513,101 @@ async def parse_sql(
         # parsing
         sql: Text = text(sql)
     return (sql,)
+
+
+async def search_match(search: str):
+    if re.fullmatch("^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}", search):
+        keys = await redis_client.keys(f"match:ID={search}*")
+    else:
+        search = await sanitize(search)
+        keys = await redis_client.keys(f"match:*ACTIVITY={search}*")
+    keys = keys[:50]
+    values = await redis_client.mget(keys)
+    if not values:
+        return None
+    match_data = await redis_decode(values)
+
+    search_matches = []
+    for match in match_data:
+        requirement = match["requirement"]
+
+        party_leader = "NO LEADER"
+        for player in match["players"]:
+            if player["isPartyLeader"] != True:
+                continue
+            party_leader = player["login"]
+
+        val = models.search_match_info(
+            ID=str(match["ID"]),
+            activity=match["activity"],
+            notes=match["notes"],
+            party_members=match["party_members"],
+            isPrivate=match["isPrivate"],
+            experience=requirement["experience"],
+            split_type=requirement["split_type"],
+            accounts=requirement["accounts"],
+            regions=requirement["regions"],
+            player_count=str(len(match["players"])),
+            match_version=match["match_version"],
+            party_leader=party_leader,
+        )
+        search_matches.append(val)
+    data = models.all_search_match_info(search_matches=search_matches)
+    return data
+
+
+async def create_match(request, user_data):
+    discord = user_data["discord"]
+    user_id = user_data["user_id"]
+    verified = user_data["verified"]
+    runewatch = user_data["runewatch"]
+    wdr = user_data["wdr"]
+    login = user_data["login"]
+
+    sub_payload = request["create_match"]
+    activity = sub_payload["activity"]
+    party_members = sub_payload["party_members"]
+    experience = sub_payload["experience"]
+    split_type = sub_payload["split_type"]
+    accounts = sub_payload["accounts"]
+    regions = sub_payload["regions"]
+    notes = await clean_notes(sub_payload["notes"])
+    group_passcode = sub_payload["group_passcode"]
+    private = bool(group_passcode)
+    ID = matchID()
+    match_version = MATCH_VERSION
+
+    rating = await get_rating(user_id=user_id)
+
+    initial_match = models.match(
+        ID=ID,
+        activity=activity,
+        party_members=party_members,
+        isPrivate=private,
+        notes=notes,
+        group_passcode=group_passcode,
+        match_version=match_version,
+        requirement=models.requirement(
+            experience=experience,
+            split_type=split_type,
+            accounts=accounts,
+            regions=regions,
+        ),
+        players=[
+            # the first player to be added to the group
+            models.player(
+                discord="NONE" if discord is None else discord,
+                isPartyLeader=True,
+                verified=verified,
+                user_id=user_id,
+                login=login,
+                rating=rating,
+                runewatch=runewatch,
+                wdr=wdr,
+            )
+        ],
+    )
+    return initial_match
 
 
 async def execute_sql(

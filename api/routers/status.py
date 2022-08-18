@@ -1,20 +1,8 @@
 import json
-import os
 import time
-from cgitb import text
-from datetime import datetime
-from optparse import Option
-from pickletools import optimize
-from pstats import Stats
 from typing import Optional
 
-from api.config import redis_client
-from fastapi import APIRouter, Header, HTTPException, Query, Request, status
-from h11 import InformationalResponse
-from pydantic import BaseModel
-from pydantic.fields import Field
-from pyparsing import Opt
-from requests import request
+from fastapi import APIRouter, Query
 
 router = APIRouter()
 

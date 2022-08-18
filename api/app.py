@@ -5,7 +5,7 @@ from api.routers import (
     lobbies,
     status,
 )
-from api.database.functions import load_redis_from_sql
+from api.utilities.utils import load_redis_from_sql
 import logging
 from fastapi_utils.tasks import repeat_every
 
