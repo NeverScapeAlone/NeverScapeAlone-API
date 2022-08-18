@@ -3,34 +3,33 @@ import logging
 import random
 import re
 import traceback
-from fastapi import HTTPException
-import websockets
 
 import api.database.models as models
+import websockets
 from api.config import (
     DISCORD_WEBHOOK,
     GLOBAL_BROADCAST_TOKEN,
+    MATCH_VERSION,
     VERSION,
     redis_client,
-    MATCH_VERSION,
 )
 from api.database.functions import (
     change_rating,
+    clean_notes,
     get_match_from_ID,
     get_party_leader_from_match_ID,
     get_rating,
     matchID,
     post_match_to_discord,
     ratelimit,
-    clean_notes,
     redis_decode,
     sanitize,
+    socket_userID,
     update_player_in_group,
     user,
     verify_ID,
-    websocket_to_user_id,
 )
-from fastapi import APIRouter, WebSocket
+from fastapi import APIRouter, HTTPException, WebSocket
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +67,7 @@ class ConnectionManager:
                 await websocket.close(code=1000)
                 return
             if m.ban_list:
-                user_id = await websocket_to_user_id(websocket=websocket)
+                user_id = await socket_userID(websocket=websocket)
                 if user_id in m.ban_list:
                     await websocket.send_json(
                         {
@@ -107,7 +106,7 @@ class ConnectionManager:
     async def disconnect(self, websocket: WebSocket, group_identifier: str):
         """disconnect current socket"""
         login = websocket.headers["Login"]
-        user_id = await websocket_to_user_id(websocket=websocket)
+        user_id = await socket_userID(websocket=websocket)
 
         if group_identifier not in list(self.active_connections.keys()):
             return
@@ -222,20 +221,22 @@ async def websocket_endpoint(
         websocket=websocket, group_identifier=group_identifier, passcode=passcode
     )
     try:
-        user_id = await websocket_to_user_id(websocket=websocket)
-        user_data = await user(user_id)
-        login = user_data["login"]
-
-        if user_id is None:
+        user_id = await socket_userID(websocket=websocket)
+        if re.match("^(E:)", str(user_id)):
+            error_message = user_id[2:]
             await websocket.send_json(
                 {
                     "detail": "global message",
-                    "server_message": {"message": "You have been disconnected"},
+                    "server_message": {"message": error_message},
                 }
             )
             await manager.disconnect(
                 websocket=websocket, group_identifier=group_identifier
             )
+            return
+
+        user_data = await user(user_id)
+        login = user_data["login"]
 
         while True:
             try:

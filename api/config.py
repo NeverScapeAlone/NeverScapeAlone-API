@@ -24,7 +24,7 @@ MATCH_VERSION = "v2.11.1-alpha"
 DEV_MODE = False
 
 redis_client = aioredis.from_url(
-    url="redis://touchgrass.online", port=6379, db=0, password=REDIS_PASSWORD
+    url="redis://touchgrass.online", port=6379, db=1, password=REDIS_PASSWORD
 )
 
 # create application

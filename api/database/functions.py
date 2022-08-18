@@ -7,6 +7,7 @@ import aiohttp
 from typing import Tuple
 import re
 import traceback
+from fastapi import APIRouter, WebSocket
 import time
 from asyncio.tasks import create_task
 from cgitb import text
@@ -19,7 +20,7 @@ from typing import List, Optional
 
 import pandas as pd
 from api.database import models
-from api.config import DEV_MODE, DISCORD_WEBHOOK, redis_client
+from api.config import DEV_MODE, DISCORD_WEBHOOK, MATCH_VERSION, redis_client
 from api.database.database import USERDATA_ENGINE, Engine, EngineType
 from api.database.models import Users, UserToken
 from fastapi import APIRouter, Header, HTTPException, Query, status
@@ -220,6 +221,12 @@ async def verify_user_agent(user_agent):
     return True
 
 
+async def verify_plugin_version(plugin_version):
+    if not re.fullmatch(MATCH_VERSION, plugin_version):
+        return False
+    return True
+
+
 async def is_valid_rsn(login: str) -> bool:
     if not re.fullmatch("[\w\d\s_-]{1,12}", login):
         return False
@@ -248,25 +255,34 @@ async def verify_discord_id(discord_id: str) -> bool:
     return True
 
 
-async def verify_headers(
-    login: str, discord: str, discord_id: str, token: str, user_agent: str
-) -> int:
+async def socket_userID(websocket: WebSocket) -> int:
+
+    login = websocket.headers["Login"]
+    discord = websocket.headers["Discord"]
+    discord_id = websocket.headers["Discord_ID"]
+    token = websocket.headers["Token"]
+    user_agent = websocket.headers["User-Agent"]
+    plugin_version = websocket.headers["Version"]
+
+    if not await verify_plugin_version(plugin_version=plugin_version):
+        logging.warn(f"Old plugin version {plugin_version}, current: {MATCH_VERSION}")
+        return "E:Outdated Plugin"
 
     if not await verify_user_agent(user_agent=user_agent):
         logging.warn(f"Bad user agent {user_agent}")
-        return None
+        return "E:Bad User-Agent"
 
     if not await verify_token_construction(token=token):
         logging.warn(f"Bad token {token}")
-        return None
+        return "E:Bad Token"
 
     if not await is_valid_rsn(login=login):
         logging.warn(f"Bad rsn {login}")
-        return None
+        return "E:Invalid RSN"
 
     if not await verify_discord_id(discord_id=discord_id):
         logging.warn(f"Bad discord id {discord_id}")
-        return None
+        return "E:Bad Discord ID"
 
     discord = await validate_discord(discord=discord)
 
@@ -293,7 +309,7 @@ async def verify_headers(
             data = sqlalchemy_result(request)
             data = data.rows2dict()
 
-    if len(data) == 0:
+    if not data:
         user_id = await register_user_token(
             login=login, discord=discord, discord_id=discord_id, token=token
         )
@@ -324,9 +340,8 @@ async def user(user_id: int) -> str:
             data = sqlalchemy_result(request)
             data = data.rows2dict()
 
-    if len(data) == 0:
-        if data is None:
-            return None
+    if not data:
+        return None
     else:
         data = data[0]
 
@@ -390,26 +405,6 @@ async def sanitize(string: str) -> str:
         return None
     string = string.upper()
     return string
-
-
-async def websocket_to_user_id(websocket):
-    head = websocket.headers
-    login = head["Login"]  # sender unique login
-    discord = head["Discord"]  # sender unique discord
-    discord_id = head["Discord_ID"]  # sender unique discord id
-    token = head["Token"]  # sender unique client token
-    user_agent = head["User-Agent"]  # sender user-agent
-    plugin_version = head["Version"]  # sender plugin version
-    time = head["Time"]  # current sender time
-
-    user_id = await verify_headers(
-        login=login,
-        discord=discord,
-        discord_id=discord_id,
-        token=token,
-        user_agent=user_agent,
-    )
-    return user_id
 
 
 async def update_player_in_group(
