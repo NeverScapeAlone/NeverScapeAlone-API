@@ -2,7 +2,7 @@ import api.middleware
 from api.config import app, redis_client
 from api.routers import (
     discord,
-    lobbies,
+    lobby,
     status,
 )
 from api.utilities.utils import load_redis_from_sql
@@ -11,7 +11,7 @@ from fastapi_utils.tasks import repeat_every
 
 app.include_router(discord.router)
 app.include_router(status.router)
-app.include_router(lobbies.router)
+app.include_router(lobby.router)
 
 logger = logging.getLogger(__name__)
 

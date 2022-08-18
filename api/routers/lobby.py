@@ -4,13 +4,9 @@ import traceback
 
 import websockets
 from api.config import GLOBAL_BROADCAST_TOKEN
+from api.routers.interactions.handler import handle_request
 from api.utilities.manager import ConnectionManager
-from api.routers.interactions import handle_request
-from api.utilities.utils import (
-    socket_userID,
-    user,
-)
-
+from api.utilities.utils import socket_userID, user
 from fastapi import APIRouter, HTTPException, WebSocket
 
 logger = logging.getLogger(__name__)
