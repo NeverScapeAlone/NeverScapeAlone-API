@@ -1,13 +1,13 @@
 import json
 
-import api.config as config
-from api.config import redis_client
+from api.config import redis_client, configVars
 from api.utilities.utils import (
     USERDATA_ENGINE,
     is_valid_rsn,
     sqlalchemy_result,
     get_match_from_ID,
     redis_decode,
+    get_plugin_version,
 )
 import logging
 from api.database.models import Users
@@ -28,7 +28,7 @@ async def verify_discord_account(login: str, discord_id: str, token: str) -> jso
     if not await is_valid_rsn(login=login):
         return
 
-    if token != config.DISCORD_TOKEN:
+    if token != configVars.DISCORD_TOKEN:
         raise HTTPException(
             status_code=202,
             detail=f"bad token",
@@ -89,7 +89,7 @@ async def verify_discord_account(login: str, discord_id: str, token: str) -> jso
 
 @router.get("/V1/discord/get-active-queues", tags=["discord"])
 async def get_active_queues(token: str) -> json:
-    if token != config.DISCORD_TOKEN:
+    if token != configVars.DISCORD_TOKEN:
         raise HTTPException(
             status_code=202,
             detail=f"bad token",
@@ -119,7 +119,7 @@ async def get_active_queues(token: str) -> json:
 
 @router.get("/V1/discord/get-active-matches", tags=["discord"])
 async def get_active_matches(token: str) -> json:
-    if token != config.DISCORD_TOKEN:
+    if token != configVars.DISCORD_TOKEN:
         raise HTTPException(
             status_code=202,
             detail=f"bad token",
@@ -150,7 +150,7 @@ async def get_active_matches(token: str) -> json:
 
 @router.post("/V1/discord/post-invites", tags=["discord"])
 async def post_invites(token: str, request: Request) -> json:
-    if token != config.DISCORD_TOKEN:
+    if token != configVars.DISCORD_TOKEN:
         raise HTTPException(
             status_code=202,
             detail=f"bad token",
@@ -171,7 +171,7 @@ async def post_invites(token: str, request: Request) -> json:
 
 @router.get("/V1/discord/delete-match", tags=["discord"])
 async def delete_match(token: str, match_id: str) -> json:
-    if token != config.DISCORD_TOKEN:
+    if token != configVars.DISCORD_TOKEN:
         raise HTTPException(
             status_code=202,
             detail=f"bad token",
@@ -185,7 +185,7 @@ async def delete_match(token: str, match_id: str) -> json:
 
 @router.get("/V1/discord/get-match-information", tags=["discord"])
 async def delete_match(token: str, match_id: str) -> json:
-    if token != config.DISCORD_TOKEN:
+    if token != configVars.DISCORD_TOKEN:
         raise HTTPException(
             status_code=202,
             detail=f"bad token",
@@ -200,7 +200,7 @@ async def delete_match(token: str, match_id: str) -> json:
 
 @router.get("/V1/discord/whois", tags=["discord"])
 async def whois(token: str, login: str) -> json:
-    if token != config.DISCORD_TOKEN:
+    if token != configVars.DISCORD_TOKEN:
         raise HTTPException(
             status_code=202,
             detail=f"bad token",
@@ -216,3 +216,27 @@ async def whois(token: str, login: str) -> json:
     if (not discord_id) or (discord_id == "NULL"):
         return "This user exists, but we do not know their discord."
     return f"{login}'s discord is <@{discord_id}>"
+
+
+@router.get("/V1/discord/update-api", tags=["discord"])
+async def update_api(token: str) -> json:
+    if token != configVars.DISCORD_TOKEN:
+        raise HTTPException(
+            status_code=202,
+            detail=f"bad token",
+        )
+    OLD_MATCH_VERSION = configVars.MATCH_VERSION
+    plugin_version = await get_plugin_version()
+    configVars.setMATCH_VERSION(match_version=plugin_version)
+
+    d = dict()
+    if OLD_MATCH_VERSION == configVars.MATCH_VERSION:
+        d["detail"] = f"API already updated to {configVars.MATCH_VERSION}"
+    else:
+        d[
+            "detail"
+        ] = f"API updated to {configVars.MATCH_VERSION} from {OLD_MATCH_VERSION}"
+
+    response = json.dumps(d)
+    response = json.loads(response)
+    return response

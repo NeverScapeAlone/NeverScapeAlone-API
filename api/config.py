@@ -12,24 +12,35 @@ import aioredis
 
 # load environment variables
 load_dotenv(find_dotenv(), verbose=True)
-sql_uri = os.environ.get("sql_uri")
-GLOBAL_BROADCAST_TOKEN = os.environ.get("global_broadcast_token")
-DISCORD_TOKEN = os.environ.get("discord_route_token")
-DISCORD_WEBHOOK = os.environ.get("discord_webhook")
-REDIS_PASSWORD = os.environ.get("redis_password")
-RATE_LIMIT_MINUTE = 120
-RATE_LIMIT_HOUR = 7200
-VERSION = "v2.10.0-alpha"
-MATCH_VERSION = "v2.11.1-alpha"
+
+
+class Configuration:
+    def __init__(self):
+        self.sql_uri = os.environ.get("sql_uri")
+        self.GLOBAL_BROADCAST_TOKEN = os.environ.get("global_broadcast_token")
+        self.DISCORD_TOKEN = os.environ.get("discord_route_token")
+        self.DISCORD_WEBHOOK = os.environ.get("discord_webhook")
+        self.REDIS_PASSWORD = os.environ.get("redis_password")
+        self.RATE_LIMIT_MINUTE = 120
+        self.RATE_LIMIT_HOUR = 7200
+        self.API_VERSION = "v2.10.0-alpha"
+        self.MATCH_VERSION = "v2.11.1-alpha"
+
+    def setMATCH_VERSION(self, match_version):
+        self.MATCH_VERSION = match_version
+
+
+configVars = Configuration()
+
 
 redis_client = aioredis.from_url(
-    url="redis://touchgrass.online", port=6379, db=0, password=REDIS_PASSWORD
+    url="redis://touchgrass.online", port=6379, db=0, password=configVars.REDIS_PASSWORD
 )
 
 # create application
 app = FastAPI(
     title="NeverScapeAlone-API",
-    version=f"{VERSION}",
+    version=f"{configVars.API_VERSION}",
     contact={
         "name": "NeverScapeAlone",
         "url": "https://twitter.com/NeverScapeAlone",

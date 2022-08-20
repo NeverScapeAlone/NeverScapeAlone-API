@@ -3,28 +3,24 @@ import asyncio
 import json
 import logging
 import random
-import aiohttp
 import re
-import traceback
-from fastapi import WebSocket
 import time
+import traceback
 from asyncio.tasks import create_task
 from cgitb import text
 from collections import namedtuple
-from better_profanity import profanity
 from typing import Optional
 
+import aiohttp
+from api.config import configVars, redis_client
 from api.database import models
-from api.config import DISCORD_WEBHOOK, MATCH_VERSION, redis_client
 from api.database.database import USERDATA_ENGINE, Engine
 from api.database.models import Users, UserToken
-from fastapi import APIRouter
+from better_profanity import profanity
+from bs4 import BeautifulSoup
+from fastapi import APIRouter, WebSocket
 from pydantic import BaseModel
-from sqlalchemy import (
-    Text,
-    select,
-    text,
-)
+from sqlalchemy import Text, select, text
 from sqlalchemy.exc import InternalError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncResult, AsyncSession
 from sqlalchemy.sql import text
@@ -133,7 +129,7 @@ async def post_match_to_discord(match: models.match):
         ],
     }
 
-    await post_url(route=DISCORD_WEBHOOK, data=webhook_payload)
+    await post_url(route=configVars.DISCORD_WEBHOOK, data=webhook_payload)
 
 
 async def get_rating(user_id):
@@ -194,6 +190,26 @@ async def ratelimit(connecting_IP):
     return True
 
 
+async def get_plugin_version():
+    """gets the most up-to-date NeverScapeAlone plugin version"""
+    url = (
+        "https://github.com/NeverScapeAlone/never-scape-alone/blob/master/build.gradle"
+    )
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url=url) as resp:
+            response = await resp.text()
+    soup = BeautifulSoup(response, "html.parser")
+    for s in soup.find_all(id=re.compile("^LC[0-9]")):
+        if not s.find_all(string=re.compile("^version")):
+            continue
+        s = "".join(s.stripped_strings)
+        match = re.match("^version[ ]{0,1}=[ ]{0,1}", s)
+        if not match:
+            continue
+        version = s[match.span()[1] :].strip("'")
+    return version
+
+
 async def verify_user_agent(user_agent):
     if not re.fullmatch("^RuneLite", user_agent[:8]):
         return False
@@ -201,7 +217,7 @@ async def verify_user_agent(user_agent):
 
 
 async def verify_plugin_version(plugin_version):
-    if MATCH_VERSION[:2] == plugin_version[:2]:
+    if configVars.MATCH_VERSION[:2] == plugin_version[:2]:
         return True
     return False
 
@@ -244,7 +260,9 @@ async def socket_userID(websocket: WebSocket) -> int:
     plugin_version = websocket.headers["Version"]
 
     if not await verify_plugin_version(plugin_version=plugin_version):
-        logging.warn(f"Old plugin version {plugin_version}, current: {MATCH_VERSION}")
+        logging.warn(
+            f"Old plugin version {plugin_version}, current: {configVars.MATCH_VERSION}"
+        )
         return "E:Outdated Plugin"
 
     if not await verify_user_agent(user_agent=user_agent):
@@ -575,7 +593,7 @@ async def create_match(request, user_data):
     group_passcode = sub_payload["group_passcode"]
     private = bool(group_passcode)
     ID = matchID()
-    match_version = MATCH_VERSION
+    match_version = configVars.MATCH_VERSION
 
     rating = await get_rating(user_id=user_id)
 
