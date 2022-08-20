@@ -201,9 +201,9 @@ async def verify_user_agent(user_agent):
 
 
 async def verify_plugin_version(plugin_version):
-    if not re.fullmatch(MATCH_VERSION, plugin_version):
-        return False
-    return True
+    if MATCH_VERSION[:2] == plugin_version[:2]:
+        return True
+    return False
 
 
 async def is_valid_rsn(login: str) -> bool:
