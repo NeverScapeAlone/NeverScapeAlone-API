@@ -3,7 +3,7 @@ import re
 import traceback
 
 import websockets
-from api.config import GLOBAL_BROADCAST_TOKEN
+from api.config import configVars
 from api.routers.interactions.handler import handle_request
 from api.utilities.manager import ConnectionManager
 from api.utilities.utils import socket_userID, user
@@ -24,11 +24,11 @@ async def global_broadcast(message: str, authorization_token: str):
             detail="Incorrect append, authorization must contain '-:' starter.",
         )
     authorization_token = authorization_token[2:]
-    if authorization_token != GLOBAL_BROADCAST_TOKEN:
+    if authorization_token != configVars.GLOBAL_BROADCAST_TOKEN:
         return HTTPException(
             status_code=401, detail="Your authorization token is incorrect."
         )
-    if message == GLOBAL_BROADCAST_TOKEN:
+    if message == configVars.GLOBAL_BROADCAST_TOKEN:
         return HTTPException(status_code=400, detail="You didn't mean to send that...")
     manager.global_broadcast(message=message)
 

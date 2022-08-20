@@ -9,6 +9,7 @@ async-timeout==4.0.2
 asyncmy==0.2.3
 atomicwrites==1.4.0
 attrs==21.4.0
+beautifulsoup4==4.11.1
 better-profanity==0.7.0
 black==22.1.0
 certifi==2021.10.8
@@ -55,6 +56,7 @@ requests==2.27.1
 rfc3339==6.2
 six==1.16.0
 sniffio==1.2.0
+soupsieve==2.3.2.post1
 SQLAlchemy==1.4.31
 starlette==0.17.1
 toml==0.10.2

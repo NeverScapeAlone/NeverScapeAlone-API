@@ -4,7 +4,7 @@ import time
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from api.config import app, redis_client, RATE_LIMIT_MINUTE, RATE_LIMIT_HOUR
+from api.config import app, redis_client, configVars
 import json
 
 logger = logging.getLogger(__name__)
@@ -46,14 +46,16 @@ async def redis_ratelimit(request: Request):
     minute_hits = int(minute_hits)
     hour_hits = int(hour_hits)
 
-    if (minute_hits > RATE_LIMIT_MINUTE) or (hour_hits > RATE_LIMIT_HOUR):
+    if (minute_hits > configVars.RATE_LIMIT_MINUTE) or (
+        hour_hits > configVars.RATE_LIMIT_HOUR
+    ):
         logger.warning(
             {
                 "client": client_host,
                 "minute hits": minute_hits,
-                "minute limit": RATE_LIMIT_MINUTE,
+                "minute limit": configVars.RATE_LIMIT_MINUTE,
                 "hour hits": hour_hits,
-                "hour limit": RATE_LIMIT_HOUR,
+                "hour limit": configVars.RATE_LIMIT_HOUR,
             }
         )
         d = dict()
