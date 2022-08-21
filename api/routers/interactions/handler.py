@@ -75,7 +75,9 @@ async def handle_request(
             )
 
         case "search_match":
-            await search_request(request=request, websocket=websocket, login=login)
+            await search_request(
+                request=request, websocket=websocket, login=login, manager=manager
+            )
 
         case "quick_match":
             await quick_match(request=request, websocket=websocket, login=login)

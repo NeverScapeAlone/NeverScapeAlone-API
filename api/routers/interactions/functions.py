@@ -195,12 +195,19 @@ async def ping_update(group_identifier, request, manager, login):
     await manager.broadcast(group_identifier=group_identifier, payload=payload)
 
 
-async def search_request(request, websocket, login):
+async def search_request(request, websocket, login, manager):
     if not await ratelimit(connecting_IP=websocket.client.host):
         return
     logger.info(f"{login} -> Search")
     data = await search_match(search=request["search"])
     if data is None:
+        await websocket.send_json(
+            {
+                "detail": "search match data",
+                "search_match_data": dict(),
+            }
+        )
+        await manager.disconnect(websocket=websocket, group_identifier="0")
         return
     logger.info(f"{login} <- Search")
     await websocket.send_json(
@@ -209,6 +216,7 @@ async def search_request(request, websocket, login):
             "search_match_data": data.dict(),
         }
     )
+    await manager.disconnect(websocket=websocket, group_identifier="0")
 
 
 async def quick_match(request, websocket, login):

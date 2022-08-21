@@ -23,7 +23,7 @@ class Configuration:
         self.REDIS_PASSWORD = os.environ.get("redis_password")
         self.RATE_LIMIT_MINUTE = 120
         self.RATE_LIMIT_HOUR = 7200
-        self.API_VERSION = "v2.10.0-alpha"
+        self.API_VERSION = "v2.11.0-alpha"
         self.MATCH_VERSION = "v2.11.1-alpha"
 
     def setMATCH_VERSION(self, match_version):
