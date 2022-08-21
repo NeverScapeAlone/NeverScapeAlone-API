@@ -138,6 +138,9 @@ async def get_rating(user_id):
         return -1
     rating_values = await redis_client.mget(keys)
     rating_list = [int(rating) for rating in rating_values]
+    print(len(rating_list))
+    if len(rating_list) <= 10:
+        return -1
     return int((rating_list.count(1) / len(rating_list)) * 50)
 
 
