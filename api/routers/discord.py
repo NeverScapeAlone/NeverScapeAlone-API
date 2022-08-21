@@ -8,6 +8,8 @@ from api.utilities.utils import (
     get_match_from_ID,
     redis_decode,
     get_plugin_version,
+    get_github_issues,
+    issues_to_response,
 )
 import logging
 from api.database.models import Users
@@ -238,5 +240,24 @@ async def update_api(token: str) -> json:
         ] = f"API updated to {configVars.MATCH_VERSION} from {OLD_MATCH_VERSION}"
 
     response = json.dumps(d)
+    response = json.loads(response)
+    return response
+
+
+@router.get("/V1/discord/get-tasks", tags=["discord"])
+async def update_api(token: str) -> json:
+    if token != configVars.DISCORD_TOKEN:
+        raise HTTPException(
+            status_code=202,
+            detail=f"bad token",
+        )
+
+    data = await get_github_issues()
+    d = await issues_to_response(data)
+
+    payload = dict()
+    payload["issues"] = d
+
+    response = json.dumps(payload)
     response = json.loads(response)
     return response
