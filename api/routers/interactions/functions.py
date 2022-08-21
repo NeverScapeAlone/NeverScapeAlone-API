@@ -201,6 +201,12 @@ async def search_request(request, websocket, login):
     logger.info(f"{login} -> Search")
     data = await search_match(search=request["search"])
     if data is None:
+        await websocket.send_json(
+            {
+                "detail": "search match data",
+                "search_match_data": dict(),
+            }
+        )
         return
     logger.info(f"{login} <- Search")
     await websocket.send_json(
