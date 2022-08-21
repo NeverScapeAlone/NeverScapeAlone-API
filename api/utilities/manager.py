@@ -91,7 +91,8 @@ class ConnectionManager:
         if group_identifier not in list(self.active_connections.keys()):
             return
 
-        self.active_connections[group_identifier].remove(websocket)
+        if websocket in self.active_connections[group_identifier]:
+            self.active_connections[group_identifier].remove(websocket)
 
         if group_identifier != "0":
             key, m = await get_match_from_ID(group_identifier=group_identifier)
@@ -108,8 +109,8 @@ class ConnectionManager:
                 return
             await redis_client.set(name=key, value=str(m.dict()))
 
-        logger.info(f"{login} << {group_identifier}")
         try:
+            logger.info(f"{login} << {group_identifier}")
             # Try to disconnect socket, if it's already been disconnected then ignore and eat exception.
             await websocket.close(1000)
         except Exception as e:

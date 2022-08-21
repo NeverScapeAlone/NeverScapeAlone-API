@@ -207,7 +207,7 @@ async def search_request(request, websocket, login, manager):
                 "search_match_data": dict(),
             }
         )
-        manager.disconnect(websocket=websocket, group_identifier="0")
+        await manager.disconnect(websocket=websocket, group_identifier="0")
         return
     logger.info(f"{login} <- Search")
     await websocket.send_json(
@@ -216,7 +216,7 @@ async def search_request(request, websocket, login, manager):
             "search_match_data": data.dict(),
         }
     )
-    manager.disconnect(websocket=websocket, group_identifier="0")
+    await manager.disconnect(websocket=websocket, group_identifier="0")
 
 
 async def quick_match(request, websocket, login):
