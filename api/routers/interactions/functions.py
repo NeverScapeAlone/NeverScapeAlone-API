@@ -11,6 +11,7 @@ from api.utilities.utils import (
     get_rating,
     post_match_to_discord,
     ratelimit,
+    redis_decode,
     search_match,
     update_player_in_group,
     verify_ID,
@@ -238,15 +239,24 @@ async def quick_match(request, websocket, login):
     if not flat_keys:
         return
 
-    match = random.choice(flat_keys)
-    match = match.decode("utf-8")
-    start = match.find("ID=")
-    end = match.find(":ACTIVITY")
-    match_id = match[start + len("ID=") : end]
+    bmatches = await redis_client.mget(flat_keys)
+    matches = await redis_decode(bmatches)
+
+    viable_matches = list()
+    for match in matches:
+        m = models.match.parse_obj(match)
+        if len(m.players) >= int(m.party_members):
+            continue
+        viable_matches.append(m)
+
+    if not viable_matches:
+        return
+
+    match = random.choice(viable_matches)
     await websocket.send_json(
         {
             "detail": "request join new match",
-            "join": f"{match_id}",
+            "join": f"{m.ID}",
             "passcode": "0",
         }
     )
