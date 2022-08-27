@@ -9,7 +9,7 @@ from api.utilities.utils import (
     ratelimit,
     socket_userID,
 )
-from fastapi import APIRouter, WebSocket
+from fastapi import APIRouter, WebSocket, status
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class ConnectionManager:
                         "server_message": {"message": "No Data"},
                     }
                 )
-                await websocket.close(code=1000)
+                await websocket.close(code=status.WS_1000_NORMAL_CLOSURE)
                 return
             if m.ban_list:
                 user_id = await socket_userID(websocket=websocket)
@@ -55,7 +55,7 @@ class ConnectionManager:
                             "server_message": {"message": "Banned from Group"},
                         }
                     )
-                    await websocket.close(code=1000)
+                    await websocket.close(code=status.WS_1000_NORMAL_CLOSURE)
                     return
             if (m.isPrivate) & (m.group_passcode != passcode):
                 await websocket.send_json(
@@ -64,7 +64,7 @@ class ConnectionManager:
                         "server_message": {"message": "Incorrect Passcode"},
                     }
                 )
-                await websocket.close(code=1000)
+                await websocket.close(code=status.WS_1000_NORMAL_CLOSURE)
                 return
             if len(m.players) >= int(m.party_members):
                 await websocket.send_json(
@@ -73,7 +73,7 @@ class ConnectionManager:
                         "server_message": {"message": "Group Full"},
                     }
                 )
-                await websocket.close(code=1000)
+                await websocket.close(code=status.WS_1000_NORMAL_CLOSURE)
                 return
 
         try:
@@ -101,6 +101,7 @@ class ConnectionManager:
             for idx, player in enumerate(m.players):
                 if player.user_id == user_id:
                     m.players.remove(player)
+                    # check if player is party lead, if so assign to next
             if not self.active_connections[group_identifier]:
                 del self.active_connections[group_identifier]
             if not m.players:
@@ -112,7 +113,7 @@ class ConnectionManager:
         try:
             logger.info(f"{login} << {group_identifier}")
             # Try to disconnect socket, if it's already been disconnected then ignore and eat exception.
-            await websocket.close(1000)
+            await websocket.close(code=status.WS_1000_NORMAL_CLOSURE)
         except Exception as e:
             pass
 
@@ -155,7 +156,7 @@ class ConnectionManager:
             }
         )
 
-        await subject_socket.close(1000)
+        await subject_socket.close(code=status.WS_1000_NORMAL_CLOSURE)
 
     async def broadcast(self, group_identifier: id, payload: json):
         """send message to all clients in group"""

@@ -1,5 +1,6 @@
 import ast
 import asyncio
+import hashlib
 import json
 import logging
 import random
@@ -143,17 +144,21 @@ async def get_rating(user_id):
     return int((rating_list.count(1) / len(rating_list)) * 50)
 
 
+def sha256(string: str) -> str:
+    """sha256 encodes a string"""
+    return hashlib.sha256(string.encode()).hexdigest()
+
+
 async def ratelimit(connecting_IP):
     MAX_CALLS_SECOND = 10
     """load key formats"""
-    key = f"ratelimit_call:{connecting_IP}"
-    manager_key = f"ratelimit_manager:{connecting_IP}"
-    tally_key = f"ratelimit_tally:{connecting_IP}"
+    key = sha256(string=f"ratelimit_call:{connecting_IP}")
+    manager_key = sha256(string=f"ratelimit_manager:{connecting_IP}")
+    tally_key = sha256(string=f"ratelimit_tally:{connecting_IP}")
 
     """ load stopgate for ratelimit tally """
     tally_data = await redis_client.get(tally_key)
     if tally_data is not None:
-        # logging.info(f"{connecting_IP} >| Rate: Tally Catch") # No need to print out failed rate limits tbh, just log raises.
         return False
 
     """ check current rate """
