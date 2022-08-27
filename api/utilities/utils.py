@@ -175,7 +175,6 @@ async def ratelimit(connecting_IP):
             """no previously set manager, due to expired watch"""
             await redis_client.set(name=manager_key, value=int(2), ex=2)
             await redis_client.set(name=tally_key, value=int(1), ex=1)
-            logging.info(f"{connecting_IP} >| Rate: New Manager")
             return False
 
         """ previously known rate manager, advance manager """
@@ -187,9 +186,6 @@ async def ratelimit(connecting_IP):
             name=manager_key, value=manager_amount, ex=manager_amount
         )
         await redis_client.set(name=tally_key, value=tally_amount, ex=tally_amount)
-        logging.info(
-            f"{connecting_IP} >| Rate: Manager {manager_amount} & Tally {tally_amount}"
-        )
         return False
 
     value = 1 + int(data)
