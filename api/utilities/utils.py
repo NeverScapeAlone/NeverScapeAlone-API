@@ -1,5 +1,6 @@
 import ast
 import asyncio
+import hashlib
 import json
 import logging
 import random
@@ -143,17 +144,21 @@ async def get_rating(user_id):
     return int((rating_list.count(1) / len(rating_list)) * 50)
 
 
+def sha256(string: str) -> str:
+    """sha256 encodes a string"""
+    return hashlib.sha256(string.encode()).hexdigest()
+
+
 async def ratelimit(connecting_IP):
     MAX_CALLS_SECOND = 10
     """load key formats"""
-    key = f"ratelimit_call:{connecting_IP}"
-    manager_key = f"ratelimit_manager:{connecting_IP}"
-    tally_key = f"ratelimit_tally:{connecting_IP}"
+    key = sha256(string=f"ratelimit_call:{connecting_IP}")
+    manager_key = sha256(string=f"ratelimit_manager:{connecting_IP}")
+    tally_key = sha256(string=f"ratelimit_tally:{connecting_IP}")
 
     """ load stopgate for ratelimit tally """
     tally_data = await redis_client.get(tally_key)
     if tally_data is not None:
-        # logging.info(f"{connecting_IP} >| Rate: Tally Catch") # No need to print out failed rate limits tbh, just log raises.
         return False
 
     """ check current rate """
@@ -170,7 +175,6 @@ async def ratelimit(connecting_IP):
             """no previously set manager, due to expired watch"""
             await redis_client.set(name=manager_key, value=int(2), ex=2)
             await redis_client.set(name=tally_key, value=int(1), ex=1)
-            logging.info(f"{connecting_IP} >| Rate: New Manager")
             return False
 
         """ previously known rate manager, advance manager """
@@ -182,9 +186,6 @@ async def ratelimit(connecting_IP):
             name=manager_key, value=manager_amount, ex=manager_amount
         )
         await redis_client.set(name=tally_key, value=tally_amount, ex=tally_amount)
-        logging.info(
-            f"{connecting_IP} >| Rate: Manager {manager_amount} & Tally {tally_amount}"
-        )
         return False
 
     value = 1 + int(data)

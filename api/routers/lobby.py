@@ -7,7 +7,8 @@ from api.config import configVars
 from api.routers.interactions.handler import handle_request
 from api.utilities.manager import ConnectionManager
 from api.utilities.utils import socket_userID, user
-from fastapi import APIRouter, HTTPException, WebSocket
+from fastapi import APIRouter, HTTPException, WebSocket, status
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -57,10 +58,18 @@ async def websocket_endpoint(
 
         user_data = await user(user_id)
         login = user_data["login"]
+        await manager.afk_update(websocket=websocket, group_identifier=group_identifier)
 
         while True:
             try:
                 request = await websocket.receive_json()
+                if not await manager.checkConnection(
+                    websocket=websocket, group_identifier=group_identifier
+                ):
+                    return
+                await manager.afk_update(
+                    websocket=websocket, group_identifier=group_identifier
+                )
             except Exception as e:
                 logger.debug(f"{login} => {e}")
                 await manager.disconnect(
