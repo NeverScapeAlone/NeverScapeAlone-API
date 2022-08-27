@@ -1,24 +1,23 @@
 import json
 import logging
+from tokenize import group
 
 from api.config import (
     redis_client,
 )
-from api.utilities.utils import (
-    get_match_from_ID,
-    ratelimit,
-    socket_userID,
-)
+import time
+from api.config import configVars
+from api.utilities.utils import get_match_from_ID, ratelimit, socket_userID, sha256
 from fastapi import APIRouter, WebSocket, status
 
 logger = logging.getLogger(__name__)
-
 router = APIRouter()
 
 
 class ConnectionManager:
     def __init__(self):
         self.active_connections = dict()
+        self.afk_sockets = dict()
 
     async def connect(self, websocket: WebSocket, group_identifier: str, passcode: str):
         """connect user to group"""
@@ -173,3 +172,47 @@ class ConnectionManager:
                 for connection in self.active_connections[group_id]:
                     await connection.send_json(payload)
         return {"detail": "sent"}
+
+    async def afk_update(self, websocket: WebSocket, group_identifier: str):
+        """updates the afk timer in self.afk_sockets, if this value gets too high the socket is disconnected."""
+        user_agent = websocket.headers["User-Agent"]
+        plugin_version = websocket.headers["Version"]
+        token = websocket.headers["Token"]
+        key = sha256(string=f"{user_agent}{plugin_version}{token}{group_identifier}")
+        self.afk_sockets[key] = (time.time(), websocket, group_identifier)
+
+    async def cleanup_connections(self):
+        logger.info("Cleaning AFK connections")
+        key_list = list(self.afk_sockets.keys())  # prevents RunTime error from occuring
+        for key in key_list:
+            try:
+                (old_time, websocket, group_identifier) = self.afk_sockets[key]
+                if time.time() > old_time + configVars.TIMEOUT:
+                    del self.afk_sockets[key]
+                    login = websocket.headers["Login"]
+                    logger.info(f"{login} -: AFK Disconnect {group_identifier}")
+                    if group_identifier != "0":
+                        await websocket.send_json(
+                            {
+                                "detail": "global message",
+                                "server_message": {"message": "AFK Disconnect"},
+                            }
+                        )
+                    await self.disconnect(
+                        websocket=websocket, group_identifier=group_identifier
+                    )
+            except Exception as e:
+                logger.info(e)
+                pass
+
+    async def checkConnection(
+        self, websocket: WebSocket, group_identifier: str
+    ) -> bool:
+        """connection sanity check"""
+        if group_identifier not in list(self.active_connections.keys()):
+            logger.info(f"{group_identifier} is not being managed")
+            return False
+        if websocket not in self.active_connections[group_identifier]:
+            logger.info(f"websocket in {group_identifier} does not exist")
+            return False
+        return True

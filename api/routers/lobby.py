@@ -58,10 +58,18 @@ async def websocket_endpoint(
 
         user_data = await user(user_id)
         login = user_data["login"]
+        await manager.afk_update(websocket=websocket, group_identifier=group_identifier)
 
         while True:
             try:
                 request = await websocket.receive_json()
+                if not await manager.checkConnection(
+                    websocket=websocket, group_identifier=group_identifier
+                ):
+                    return
+                await manager.afk_update(
+                    websocket=websocket, group_identifier=group_identifier
+                )
             except Exception as e:
                 logger.debug(f"{login} => {e}")
                 await manager.disconnect(

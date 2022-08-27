@@ -7,6 +7,7 @@ from api.routers import (
 )
 from api.utilities.utils import load_redis_from_sql
 import logging
+from api.routers.lobby import manager
 from fastapi_utils.tasks import repeat_every
 
 app.include_router(discord.router)
@@ -28,6 +29,7 @@ async def redis_health_check():
 @repeat_every(seconds=5, wait_first=True, raise_exceptions=True)
 async def load_tables_into_redis():
     await load_redis_from_sql()
+    await manager.cleanup_connections()
 
 
 @app.get("/")
