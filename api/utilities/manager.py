@@ -27,7 +27,6 @@ class ConnectionManager:
         # catch statement for if the group already exists, and a connection has already been made, should prevent connection stacking.
         if group_identifier in list(self.active_connections.keys()):
             if websocket in self.active_connections[group_identifier]:
-                logger.info(f"{login} >>< {group_identifier}")
                 return
 
         login = websocket.headers["Login"]
@@ -132,13 +131,20 @@ class ConnectionManager:
             self.active_connections[group_identifier].remove(websocket)
 
         if group_identifier != "0":
+            d = dict()
+            d["disconnect"] = login
+            await self.match_writer(group_identifier=group_identifier, dictionary=d)
+
             key, m = await get_match_from_ID(group_identifier=group_identifier)
             if not m:
                 return
             for idx, player in enumerate(m.players):
                 if player.user_id == user_id:
-                    m.players.remove(player)
-                    # check if player is party lead, if so assign to next
+                    if (player.isPartyLeader) & (len(m.players) > 1):
+                        m.players.remove(player)
+                        m.players[0].isPartyLeader = True
+                    else:
+                        m.players.remove(player)
             if not self.active_connections[group_identifier]:
                 del self.active_connections[group_identifier]
             if not m.players:
@@ -148,11 +154,6 @@ class ConnectionManager:
 
         try:
             await websocket.close(code=status.WS_1000_NORMAL_CLOSURE)
-            await self.match_writer(
-                group_identifier=group_identifier,
-                key="disconnect",
-                value=f"{login}",
-            )
         except Exception as e:
             pass
 
@@ -265,7 +266,6 @@ class ConnectionManager:
         self.afk_sockets[key] = (time.time(), websocket, group_identifier)
 
     async def cleanup_connections(self):
-        logger.info("Cleaning AFK connections")
         key_list = list(self.afk_sockets.keys())  # prevents RunTime error from occuring
         for key in key_list:
             try:
