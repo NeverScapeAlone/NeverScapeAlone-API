@@ -264,7 +264,6 @@ class ConnectionManager:
         self.afk_sockets[key] = (time.time(), websocket, group_identifier)
 
     async def cleanup_connections(self):
-        logger.info("Cleaning AFK connections")
         key_list = list(self.afk_sockets.keys())  # prevents RunTime error from occuring
         for key in key_list:
             try:
