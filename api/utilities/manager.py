@@ -132,6 +132,10 @@ class ConnectionManager:
             self.active_connections[group_identifier].remove(websocket)
 
         if group_identifier != "0":
+            d = dict()
+            d["disconnect"] = login
+            await self.match_writer(group_identifier=group_identifier, dictionary=d)
+
             key, m = await get_match_from_ID(group_identifier=group_identifier)
             if not m:
                 return
@@ -148,11 +152,6 @@ class ConnectionManager:
 
         try:
             await websocket.close(code=status.WS_1000_NORMAL_CLOSURE)
-            await self.match_writer(
-                group_identifier=group_identifier,
-                key="disconnect",
-                value=f"{login}",
-            )
         except Exception as e:
             pass
 
