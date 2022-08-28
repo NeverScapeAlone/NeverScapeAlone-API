@@ -1,13 +1,11 @@
 import json
 import logging
-from tokenize import group
-
-from api.config import (
-    redis_client,
-)
 import time
-from api.config import configVars
-from api.utilities.utils import get_match_from_ID, ratelimit, socket_userID, sha256
+from tokenize import group
+from typing import List
+
+from api.config import configVars, redis_client
+from api.utilities.utils import get_match_from_ID, ratelimit, sha256, socket_userID
 from fastapi import APIRouter, WebSocket, status
 
 logger = logging.getLogger(__name__)
@@ -43,6 +41,11 @@ class ConnectionManager:
                         "server_message": {"message": "No Data"},
                     }
                 )
+                await self.match_writer(
+                    group_identifier=group_identifier,
+                    key="join_error",
+                    value=f"{login} failed to join match: No Match Data",
+                )
                 await websocket.close(code=status.WS_1000_NORMAL_CLOSURE)
                 return
             if m.ban_list:
@@ -54,6 +57,11 @@ class ConnectionManager:
                             "server_message": {"message": "Banned from Group"},
                         }
                     )
+                    await self.match_writer(
+                        group_identifier=group_identifier,
+                        key="join_error",
+                        value=f"{login} failed to join match: Banned from Group",
+                    )
                     await websocket.close(code=status.WS_1000_NORMAL_CLOSURE)
                     return
             if (m.isPrivate) & (m.group_passcode != passcode):
@@ -62,6 +70,11 @@ class ConnectionManager:
                         "detail": "global message",
                         "server_message": {"message": "Incorrect Passcode"},
                     }
+                )
+                await self.match_writer(
+                    group_identifier=group_identifier,
+                    key="join_error",
+                    value=f"{login} failed to join match: Incorrect Passcode",
                 )
                 await websocket.close(code=status.WS_1000_NORMAL_CLOSURE)
                 return
@@ -72,15 +85,28 @@ class ConnectionManager:
                         "server_message": {"message": "Group Full"},
                     }
                 )
+                await self.match_writer(
+                    group_identifier=group_identifier,
+                    key="join_error",
+                    value=f"{login} failed to join match: Group Full",
+                )
                 await websocket.close(code=status.WS_1000_NORMAL_CLOSURE)
                 return
 
         try:
             self.active_connections[group_identifier].append(websocket)
-            logger.info(f"{login} >> {group_identifier}")
+            await self.match_writer(
+                group_identifier=group_identifier,
+                key="successful_join",
+                value=f"{login} joined existing match.",
+            )
         except KeyError:
             self.active_connections[group_identifier] = [websocket]
-            logger.info(f"{login} > {group_identifier}")
+            await self.match_writer(
+                group_identifier=group_identifier,
+                key="successful_join",
+                value=f"{login} joined new match.",
+            )
 
     async def disconnect(self, websocket: WebSocket, group_identifier: str):
         """disconnect current socket"""
@@ -105,14 +131,21 @@ class ConnectionManager:
                 del self.active_connections[group_identifier]
             if not m.players:
                 await redis_client.delete(key)
-                logger.info(f"{login} < {group_identifier}")
+                await self.match_writer(
+                    group_identifier=group_identifier,
+                    key="disconnect",
+                    value=f"{login} disconnected from match.",
+                )
                 return
             await redis_client.set(name=key, value=str(m.dict()))
 
         try:
-            logger.info(f"{login} << {group_identifier}")
-            # Try to disconnect socket, if it's already been disconnected then ignore and eat exception.
             await websocket.close(code=status.WS_1000_NORMAL_CLOSURE)
+            await self.match_writer(
+                group_identifier=group_identifier,
+                key="disconnect",
+                value=f"{login} disconnected from match.",
+            )
         except Exception as e:
             pass
 
@@ -147,6 +180,12 @@ class ConnectionManager:
             m.ban_list.append(player.user_id)
         await redis_client.set(name=key, value=str(m.dict()))
 
+        subject_login = subject_socket.headers["Login"]
+        await self.match_writer(
+            group_identifier=group_identifier,
+            key="forceful_socket_disconnect",
+            value=f"{subject_login} socket disconnect. (Kicked)",
+        )
         logger.info(f"{user_to_disconnect.login} <<K {group_identifier}")
         await subject_socket.send_json(
             {
@@ -190,7 +229,11 @@ class ConnectionManager:
                 if time.time() > old_time + configVars.TIMEOUT:
                     del self.afk_sockets[key]
                     login = websocket.headers["Login"]
-                    logger.info(f"{login} -: AFK Disconnect {group_identifier}")
+                    await self.match_writer(
+                        group_identifier=group_identifier,
+                        key="afk_cleanup",
+                        value=f"{login}",
+                    )
                     if group_identifier != "0":
                         await websocket.send_json(
                             {
@@ -205,7 +248,7 @@ class ConnectionManager:
                 logger.info(e)
                 pass
 
-    async def checkConnection(
+    async def check_connection(
         self, websocket: WebSocket, group_identifier: str
     ) -> bool:
         """connection sanity check"""
@@ -216,3 +259,21 @@ class ConnectionManager:
             logger.info(f"websocket in {group_identifier} does not exist")
             return False
         return True
+
+    async def match_writer(
+        self, group_identifier: str, key=None, value=None, dictionary=None
+    ):
+        path = "./histories/"
+        filename = f"{group_identifier}.json"
+        file = path + filename
+        with open(file=file, mode="a+") as match_history:
+            if key is not None and value is not None:
+                d = dict()
+                d[key] = value
+                d["time"] = time.time()
+                json_object = json.dumps(d, indent=4)
+            if dictionary:
+                dictionary["time"] = time.time()
+                json_object = json.dumps(dictionary, indent=4)
+            match_history.write(json_object)
+            match_history.write(",")

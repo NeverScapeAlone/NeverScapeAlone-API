@@ -16,7 +16,7 @@ import aiohttp
 from api.config import configVars, redis_client
 from api.database import models
 from api.database.database import USERDATA_ENGINE, Engine
-from api.database.models import Users, UserToken
+from api.database.models import AccessTokens, Users, UserToken
 from better_profanity import profanity
 from bs4 import BeautifulSoup
 from fastapi import APIRouter, WebSocket
@@ -320,6 +320,20 @@ async def socket_userID(websocket: WebSocket) -> int:
 
     await redis_client.set(name=key, value=user_id, ex=120)
     return user_id
+
+
+async def validate_access_token(access_token: str):
+    sql = select(AccessTokens)
+    sql = sql.where(AccessTokens.access_token == access_token)
+
+    async with USERDATA_ENGINE.get_session() as session:
+        session: AsyncSession = session
+        async with session.begin():
+            request = await session.execute(sql)
+            data = sqlalchemy_result(request)
+            data = data.rows2dict()
+
+    return data
 
 
 async def user(user_id: int) -> str:

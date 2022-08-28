@@ -119,6 +119,13 @@ class WorldInformation(Base):
     player_count = Column(Integer)
 
 
+class AccessTokens(Base):
+    __tablename__ = "access_tokens"
+    ID = Column(Integer, primary_key=True)
+    access_token = Column(TIMESTAMP)
+    permissions = Column(Integer)
+
+
 class search_match_info(BaseModel):
     ID: str
     activity: str

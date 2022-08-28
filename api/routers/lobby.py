@@ -1,3 +1,4 @@
+from ast import MatchSingleton
 import logging
 import re
 import traceback
@@ -6,15 +7,45 @@ import websockets
 from api.config import configVars
 from api.routers.interactions.handler import handle_request
 from api.utilities.manager import ConnectionManager
-from api.utilities.utils import socket_userID, user
+from api.utilities.utils import socket_userID, user, validate_access_token
 from fastapi import APIRouter, HTTPException, WebSocket, status
-import time
+import json
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 manager = ConnectionManager()
+
+
+@router.get("/V2/match_history")
+async def match_history(match_identifier: str, access_token: str):
+    if not await validate_access_token(access_token=access_token):
+        return HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized Access.",
+        )
+    if not re.fullmatch("^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}", match_identifier):
+        return HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect Match Identifier format. Expected: ^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}",
+        )
+    path = "./histories/"
+    filename = f"{match_identifier}.json"
+    file = path + filename
+    try:
+        with open(file=file, mode="r") as match_history:
+            info = match_history.read()
+            info = info.replace("\n", "")
+            info = info.strip(",")
+            contents = f"""{{"match_history":[{info}]}}"""
+            data = json.loads(contents)
+    except FileNotFoundError:
+        return HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Match history not found.",
+        )
+    return data
 
 
 @router.get("/V2/global_broadcast")
@@ -63,7 +94,7 @@ async def websocket_endpoint(
         while True:
             try:
                 request = await websocket.receive_json()
-                if not await manager.checkConnection(
+                if not await manager.check_connection(
                     websocket=websocket, group_identifier=group_identifier
                 ):
                     return

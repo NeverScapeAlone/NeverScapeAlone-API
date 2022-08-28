@@ -32,12 +32,18 @@ async def handle_request(
 
         case "like":
             await like(
-                group_identifier=group_identifier, request=request, user_id=user_id
+                group_identifier=group_identifier,
+                request=request,
+                user_id=user_id,
+                manager=manager,
             )
 
         case "dislike":
             await dislike(
-                group_identifier=group_identifier, request=request, user_id=user_id
+                group_identifier=group_identifier,
+                request=request,
+                user_id=user_id,
+                manager=manager,
             )
 
         case "kick":
@@ -80,11 +86,17 @@ async def handle_request(
             )
 
         case "quick_match":
-            await quick_match(request=request, websocket=websocket, login=login)
+            await quick_match(
+                request=request, websocket=websocket, login=login, manager=manager
+            )
 
         case "create_match":
             await create_match_request(
-                request=request, websocket=websocket, user_data=user_data, login=login
+                request=request,
+                websocket=websocket,
+                user_data=user_data,
+                login=login,
+                manager=manager,
             )
 
         case "set_status":
@@ -103,6 +115,7 @@ async def handle_request(
                 websocket=websocket,
                 user_data=user_data,
                 user_id=user_id,
+                manager=manager,
             )
 
         case _:

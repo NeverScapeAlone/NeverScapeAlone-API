@@ -11,7 +11,6 @@ from api.utilities.utils import (
     get_rating,
     post_match_to_discord,
     ratelimit,
-    redis_decode,
     search_match,
     update_player_in_group,
     verify_ID,
@@ -21,20 +20,28 @@ from fastapi import WebSocket
 logger = logging.getLogger(__name__)
 
 
-async def like(group_identifier, request, user_id):
+async def like(group_identifier, request, user_id, manager):
     if group_identifier == "0":
         return
     request_id = request["like"]
     if await change_rating(request_id=request_id, user_id=user_id, is_like=True):
-        logger.info(f"{user_id} liked {request_id}")
+        await manager.match_writer(
+            group_identifier=group_identifier,
+            key="liked",
+            value=f"{user_id} liked {request_id}.",
+        )
 
 
-async def dislike(group_identifier, request, user_id):
+async def dislike(group_identifier, request, user_id, manager):
     if group_identifier == "0":
         return
     request_id = request["dislike"]
     if await change_rating(request_id=request_id, user_id=user_id, is_like=False):
-        logger.info(f"{user_id} disliked {request_id}")
+        await manager.match_writer(
+            group_identifier=group_identifier,
+            key="dislike",
+            value=f"{user_id} disliked {request_id}.",
+        )
 
 
 async def kick(group_identifier, request, user_id, manager):
@@ -60,10 +67,23 @@ async def kick(group_identifier, request, user_id, manager):
         if (subject_player != None) & (submitting_player != None):
             break
 
+    kick_request_dict = dict()
+    kick_request_dict["submitting_player"] = submitting_player.login
+    kick_request_dict["subject_player"] = subject_player.login
+
+    await manager.match_writer(
+        group_identifier=group_identifier, dictionary=kick_request_dict
+    )
+
     if (subject_player == None) or (submitting_player == None):
         return
 
     if submitting_player.isPartyLeader:
+        await manager.match_writer(
+            group_identifier=group_identifier,
+            key="kicked",
+            value=f"{subject_player.login} kicked from {group_identifier}.",
+        )
         await manager.disconnect_other_user(
             group_identifier=group_identifier,
             user_to_disconnect=subject_player,
@@ -85,6 +105,11 @@ async def kick(group_identifier, request, user_id, manager):
     kick_length = len(subject_player.kick_list)
     threshold = int(group_size / 2) + 1
     if kick_length >= threshold:
+        await manager.match_writer(
+            group_identifier=group_identifier,
+            key="kicked",
+            value=f"{subject_player.login} kicked from {group_identifier}.",
+        )
         await manager.disconnect_other_user(
             group_identifier=group_identifier,
             user_to_disconnect=subject_player,
@@ -118,6 +143,13 @@ async def promote(group_identifier, request, user_id, manager):
     if (subject_player == None) or (submitting_player == None):
         return
 
+    promote_request_dict = dict()
+    promote_request_dict["submitting_player"] = submitting_player.login
+    promote_request_dict["subject_player"] = subject_player.login
+    await manager.match_writer(
+        group_identifier=group_identifier, dictionary=promote_request_dict
+    )
+
     if submitting_player.isPartyLeader:
         submitting_player.isPartyLeader = False
         subject_player.isPartyLeader = True
@@ -128,6 +160,11 @@ async def promote(group_identifier, request, user_id, manager):
         await update_player_in_group(
             group_identifier=group_identifier,
             player_to_update=subject_player,
+        )
+        await manager.match_writer(
+            group_identifier=group_identifier,
+            key="promoted",
+            value=f"{subject_player.login}",
         )
         return
 
@@ -167,9 +204,18 @@ async def location_update(
         return
     if group_identifier == "0":
         return
-    logger.info(f"{login} ->> Set Location")
+
     location = request["location"]
     location = models.location.parse_obj(location)
+    sub_dict = dict()
+    sub_dict["location_information"] = location.dict()
+    sub_dict["login"] = login
+    location_dict = dict()
+    location_dict["location"] = sub_dict
+
+    await manager.match_writer(
+        group_identifier=group_identifier, dictionary=location_dict
+    )
 
     key, m = await get_match_from_ID(group_identifier=group_identifier)
     if not m:
@@ -189,7 +235,6 @@ async def location_update(
 async def ping_update(group_identifier, request, manager, login):
     if group_identifier == "0":
         return
-    logger.info(f"{login} ->> PING")
     ping_payload = request["ping_payload"]
     ping = models.ping.parse_obj(ping_payload).dict()
     payload = {"detail": "incoming ping", "ping_data": ping}
@@ -199,7 +244,9 @@ async def ping_update(group_identifier, request, manager, login):
 async def search_request(request, websocket, login, manager):
     if not await ratelimit(connecting_IP=websocket.client.host):
         return
-    logger.info(f"{login} -> Search")
+    await manager.match_writer(
+        group_identifier="0", key="search_request", value=f"{login}"
+    )
     data = await search_match(search=request["search"])
     if data is None:
         await websocket.send_json(
@@ -210,7 +257,9 @@ async def search_request(request, websocket, login, manager):
         )
         await manager.disconnect(websocket=websocket, group_identifier="0")
         return
-    logger.info(f"{login} <- Search")
+    await manager.match_writer(
+        group_identifier="0", key="search_send", value=f"{login}"
+    )
     await websocket.send_json(
         {
             "detail": "search match data",
@@ -220,10 +269,13 @@ async def search_request(request, websocket, login, manager):
     await manager.disconnect(websocket=websocket, group_identifier="0")
 
 
-async def quick_match(request, websocket, login):
+async def quick_match(request, websocket, login, manager):
     if not await ratelimit(connecting_IP=websocket.client.host):
         return
-    logger.info(f"{login} -> Quick")
+
+    await manager.match_writer(
+        group_identifier="0", key="quick_match", value=f"{login}"
+    )
     match_list = request["match_list"]
 
     if "RANDOM" in match_list:
@@ -239,34 +291,48 @@ async def quick_match(request, websocket, login):
     if not flat_keys:
         return
 
-    bmatches = await redis_client.mget(flat_keys)
-    matches = await redis_decode(bmatches)
-
-    viable_matches = list()
-    for match in matches:
-        m = models.match.parse_obj(match)
-        if len(m.players) >= int(m.party_members):
-            continue
-        viable_matches.append(m)
-
-    if not viable_matches:
-        return
-
-    match = random.choice(viable_matches)
+    match = random.choice(flat_keys)
+    match = match.decode("utf-8")
+    start = match.find("ID=")
+    end = match.find(":ACTIVITY")
+    match_id = match[start + len("ID=") : end]
     await websocket.send_json(
         {
             "detail": "request join new match",
-            "join": f"{m.ID}",
+            "join": f"{match_id}",
             "passcode": "0",
         }
     )
 
 
-async def create_match_request(request, websocket, user_data, login):
+async def create_match_request(request, websocket, user_data, login, manager):
     if not await ratelimit(connecting_IP=websocket.client.host):
         return
-    logger.info(f"{login} -> Create Match")
+    await manager.match_writer(
+        group_identifier="0", key="create_match", value=f"{login}"
+    )
     initial_match = await create_match(request, user_data)
+
+    history_initial_match = dict()
+    history_initial_match["match_id"] = initial_match.ID
+    history_initial_match["activity"] = initial_match.activity
+    history_initial_match["max_players"] = initial_match.party_members
+    history_initial_match["is_private"] = initial_match.isPrivate
+    history_initial_match["notes"] = initial_match.notes
+    history_initial_match["match_version"] = initial_match.match_version
+    history_initial_match["experience"] = initial_match.requirement.experience
+    history_initial_match["split_type"] = initial_match.requirement.split_type
+    history_initial_match["account_types"] = initial_match.requirement.accounts
+    history_initial_match["regions"] = initial_match.requirement.regions
+
+    match_creation_dict = dict()
+    match_creation_dict["match_settings"] = history_initial_match
+    match_creation_dict["login"] = login
+
+    await manager.match_writer(
+        group_identifier=initial_match.ID, dictionary=match_creation_dict
+    )
+
     key = f"match:ID={initial_match.ID}:ACTIVITY={initial_match.activity}:PRIVATE={initial_match.isPrivate}"
     await redis_client.set(name=key, value=str(initial_match.dict()))
     await websocket.send_json(
@@ -285,7 +351,6 @@ async def update_status(group_identifier, request, websocket, user_id, login, ma
     if not await ratelimit(connecting_IP=websocket.client.host):
         return
 
-    logger.info(f"{login} ->> Set Status")
     status_val = models.status.parse_obj(request["status"])
 
     key, m = await get_match_from_ID(group_identifier=group_identifier)
@@ -304,7 +369,9 @@ async def update_status(group_identifier, request, websocket, user_id, login, ma
     await manager.broadcast(group_identifier=group_identifier, payload=payload)
 
 
-async def check_connection_request(group_identifier, websocket, user_data, user_id):
+async def check_connection_request(
+    group_identifier, websocket, user_data, user_id, manager
+):
     if group_identifier == "0":
         return
     if not await ratelimit(connecting_IP=websocket.client.host):
@@ -323,6 +390,12 @@ async def check_connection_request(group_identifier, websocket, user_data, user_
         m.players.append(p)
         await redis_client.set(name=key, value=str(m.dict()))
 
+    login = user_data["login"]
+    await manager.match_writer(
+        group_identifier=group_identifier,
+        key="check_connection_request",
+        value=f"successful connection from {login}",
+    )
     await websocket.send_json(
         {"detail": "successful connection", "match_data": m.dict()}
     )
