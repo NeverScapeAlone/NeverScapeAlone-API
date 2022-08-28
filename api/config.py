@@ -23,7 +23,7 @@ class Configuration:
         self.REDIS_PASSWORD = os.environ.get("redis_password")
         self.RATE_LIMIT_MINUTE = 120
         self.RATE_LIMIT_HOUR = 7200
-        self.API_VERSION = "v2.13.0-alpha"
+        self.API_VERSION = "v2.14.0-alpha"
         self.MATCH_VERSION = "v2.11.1-alpha"
         self.TIMEOUT = 30 * 60  # 30 min afk timer
 
