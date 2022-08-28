@@ -27,7 +27,6 @@ class ConnectionManager:
         # catch statement for if the group already exists, and a connection has already been made, should prevent connection stacking.
         if group_identifier in list(self.active_connections.keys()):
             if websocket in self.active_connections[group_identifier]:
-                logger.info(f"{login} >>< {group_identifier}")
                 return
 
         login = websocket.headers["Login"]
@@ -141,8 +140,11 @@ class ConnectionManager:
                 return
             for idx, player in enumerate(m.players):
                 if player.user_id == user_id:
-                    m.players.remove(player)
-                    # check if player is party lead, if so assign to next
+                    if (player.isPartyLeader) & (len(m.players) > 1):
+                        m.players.remove(player)
+                        m.players[0].isPartyLeader = True
+                    else:
+                        m.players.remove(player)
             if not self.active_connections[group_identifier]:
                 del self.active_connections[group_identifier]
             if not m.players:
