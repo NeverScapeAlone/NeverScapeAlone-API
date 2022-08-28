@@ -41,10 +41,13 @@ class ConnectionManager:
                         "server_message": {"message": "No Data"},
                     }
                 )
+                sub_payload = dict()
+                sub_payload["login"] = login
+                sub_payload["error"] = "No Match Data"
+                payload = dict()
+                payload["join_error"] = sub_payload
                 await self.match_writer(
-                    group_identifier=group_identifier,
-                    key="join_error",
-                    value=f"{login} failed to join match: No Match Data",
+                    group_identifier=group_identifier, dictionary=payload
                 )
                 await websocket.close(code=status.WS_1000_NORMAL_CLOSURE)
                 return
@@ -57,10 +60,13 @@ class ConnectionManager:
                             "server_message": {"message": "Banned from Group"},
                         }
                     )
+                    sub_payload = dict()
+                    sub_payload["login"] = login
+                    sub_payload["error"] = "Banned from Group"
+                    payload = dict()
+                    payload["join_error"] = sub_payload
                     await self.match_writer(
-                        group_identifier=group_identifier,
-                        key="join_error",
-                        value=f"{login} failed to join match: Banned from Group",
+                        group_identifier=group_identifier, dictionary=payload
                     )
                     await websocket.close(code=status.WS_1000_NORMAL_CLOSURE)
                     return
@@ -71,10 +77,13 @@ class ConnectionManager:
                         "server_message": {"message": "Incorrect Passcode"},
                     }
                 )
+                sub_payload = dict()
+                sub_payload["login"] = login
+                sub_payload["error"] = "Incorrect Passcode"
+                payload = dict()
+                payload["join_error"] = sub_payload
                 await self.match_writer(
-                    group_identifier=group_identifier,
-                    key="join_error",
-                    value=f"{login} failed to join match: Incorrect Passcode",
+                    group_identifier=group_identifier, dictionary=payload
                 )
                 await websocket.close(code=status.WS_1000_NORMAL_CLOSURE)
                 return
@@ -85,10 +94,13 @@ class ConnectionManager:
                         "server_message": {"message": "Group Full"},
                     }
                 )
+                sub_payload = dict()
+                sub_payload["login"] = login
+                sub_payload["error"] = "Group Full"
+                payload = dict()
+                payload["join_error"] = sub_payload
                 await self.match_writer(
-                    group_identifier=group_identifier,
-                    key="join_error",
-                    value=f"{login} failed to join match: Group Full",
+                    group_identifier=group_identifier, dictionary=payload
                 )
                 await websocket.close(code=status.WS_1000_NORMAL_CLOSURE)
                 return
@@ -98,14 +110,14 @@ class ConnectionManager:
             await self.match_writer(
                 group_identifier=group_identifier,
                 key="successful_join",
-                value=f"{login} joined existing match.",
+                value=f"{login}",
             )
         except KeyError:
             self.active_connections[group_identifier] = [websocket]
             await self.match_writer(
                 group_identifier=group_identifier,
                 key="successful_join",
-                value=f"{login} joined new match.",
+                value=f"{login}",
             )
 
     async def disconnect(self, websocket: WebSocket, group_identifier: str):
@@ -131,11 +143,6 @@ class ConnectionManager:
                 del self.active_connections[group_identifier]
             if not m.players:
                 await redis_client.delete(key)
-                await self.match_writer(
-                    group_identifier=group_identifier,
-                    key="disconnect",
-                    value=f"{login} disconnected from match.",
-                )
                 return
             await redis_client.set(name=key, value=str(m.dict()))
 
@@ -144,7 +151,7 @@ class ConnectionManager:
             await self.match_writer(
                 group_identifier=group_identifier,
                 key="disconnect",
-                value=f"{login} disconnected from match.",
+                value=f"{login}",
             )
         except Exception as e:
             pass
@@ -181,12 +188,12 @@ class ConnectionManager:
         await redis_client.set(name=key, value=str(m.dict()))
 
         subject_login = subject_socket.headers["Login"]
-        await self.match_writer(
-            group_identifier=group_identifier,
-            key="forceful_socket_disconnect",
-            value=f"{subject_login} socket disconnect. (Kicked)",
-        )
-        logger.info(f"{user_to_disconnect.login} <<K {group_identifier}")
+        sub_payload = dict()
+        sub_payload["login"] = subject_login
+        payload = dict()
+        payload["forceful_socket_disconnect"] = sub_payload
+        await self.match_writer(group_identifier=group_identifier, dictionary=payload)
+
         await subject_socket.send_json(
             {
                 "detail": "global message",
@@ -195,6 +202,43 @@ class ConnectionManager:
         )
 
         await subject_socket.close(code=status.WS_1000_NORMAL_CLOSURE)
+
+    async def get_all_matches(self):
+        return [key for key in self.active_connections.keys()]
+
+    async def dissolve_match(self, group_identifier: str, disconnect_message: str):
+        """disconnect all sockets and delete match"""
+
+        key, m = await get_match_from_ID(group_identifier=group_identifier)
+        if not key:
+            return (
+                f"{group_identifier} does not exist, and therefore cannot be deleted."
+            )
+
+        # if the group identifier doesn't exist in manager, forcefully delete match
+        if group_identifier not in list(self.active_connections.keys()):
+            if await redis_client.delete(key):
+                return f"{group_identifier} was unmanaged and forcefully deleted."
+
+        # remove all socket connections and delete users in those sockets
+        for websocket in self.active_connections[group_identifier]:
+            try:
+                await websocket.send_json(
+                    {
+                        "detail": "global message",
+                        "server_message": {"message": f"{disconnect_message}"},
+                    }
+                )
+                await self.disconnect(
+                    websocket=websocket,
+                    group_identifier=group_identifier,
+                    disconnect_message=disconnect_message,
+                )
+            except:
+                pass
+        if await redis_client.delete(key):
+            return f"{group_identifier} was managed and forcefully deleted."
+        return f"{group_identifier} was managed and cleanly deleted."
 
     async def broadcast(self, group_identifier: id, payload: json):
         """send message to all clients in group"""

@@ -25,10 +25,13 @@ async def like(group_identifier, request, user_id, manager):
         return
     request_id = request["like"]
     if await change_rating(request_id=request_id, user_id=user_id, is_like=True):
+        sub_payload = dict()
+        sub_payload["liker"] = user_id
+        sub_payload["liked"] = request_id
+        payload = dict()
+        payload["like"] = sub_payload
         await manager.match_writer(
-            group_identifier=group_identifier,
-            key="liked",
-            value=f"{user_id} liked {request_id}.",
+            group_identifier=group_identifier, dictionary=payload
         )
 
 
@@ -37,10 +40,13 @@ async def dislike(group_identifier, request, user_id, manager):
         return
     request_id = request["dislike"]
     if await change_rating(request_id=request_id, user_id=user_id, is_like=False):
+        sub_payload = dict()
+        sub_payload["disliker"] = user_id
+        sub_payload["disliked"] = request_id
+        payload = dict()
+        payload["dislike"] = sub_payload
         await manager.match_writer(
-            group_identifier=group_identifier,
-            key="dislike",
-            value=f"{user_id} disliked {request_id}.",
+            group_identifier=group_identifier, dictionary=payload
         )
 
 
@@ -67,22 +73,24 @@ async def kick(group_identifier, request, user_id, manager):
         if (subject_player != None) & (submitting_player != None):
             break
 
-    kick_request_dict = dict()
-    kick_request_dict["submitting_player"] = submitting_player.login
-    kick_request_dict["subject_player"] = subject_player.login
-
-    await manager.match_writer(
-        group_identifier=group_identifier, dictionary=kick_request_dict
-    )
+    sub_payload = dict()
+    sub_payload["submitting_player"] = submitting_player.login
+    sub_payload["subject_player"] = subject_player.login
+    payload = dict()
+    payload["kick_request"] = sub_payload
+    await manager.match_writer(group_identifier=group_identifier, dictionary=payload)
 
     if (subject_player == None) or (submitting_player == None):
         return
 
     if submitting_player.isPartyLeader:
+        sub_payload = dict()
+        sub_payload["submitting_player"] = submitting_player.login
+        sub_payload["subject_player"] = subject_player.login
+        payload = dict()
+        payload["kicked"] = sub_payload
         await manager.match_writer(
-            group_identifier=group_identifier,
-            key="kicked",
-            value=f"{subject_player.login} kicked from {group_identifier}.",
+            group_identifier=group_identifier, dictionary=payload
         )
         await manager.disconnect_other_user(
             group_identifier=group_identifier,
@@ -105,10 +113,13 @@ async def kick(group_identifier, request, user_id, manager):
     kick_length = len(subject_player.kick_list)
     threshold = int(group_size / 2) + 1
     if kick_length >= threshold:
+        sub_payload = dict()
+        sub_payload["submitting_player"] = submitting_player.login
+        sub_payload["subject_player"] = subject_player.login
+        payload = dict()
+        payload["kicked"] = sub_payload
         await manager.match_writer(
-            group_identifier=group_identifier,
-            key="kicked",
-            value=f"{subject_player.login} kicked from {group_identifier}.",
+            group_identifier=group_identifier, dictionary=payload
         )
         await manager.disconnect_other_user(
             group_identifier=group_identifier,
@@ -143,12 +154,12 @@ async def promote(group_identifier, request, user_id, manager):
     if (subject_player == None) or (submitting_player == None):
         return
 
-    promote_request_dict = dict()
-    promote_request_dict["submitting_player"] = submitting_player.login
-    promote_request_dict["subject_player"] = subject_player.login
-    await manager.match_writer(
-        group_identifier=group_identifier, dictionary=promote_request_dict
-    )
+    sub_payload = dict()
+    sub_payload["submitting_player"] = submitting_player.login
+    sub_payload["subject_player"] = subject_player.login
+    payload = dict()
+    payload["promote_request"] = sub_payload
+    await manager.match_writer(group_identifier=group_identifier, dictionary=payload)
 
     if submitting_player.isPartyLeader:
         submitting_player.isPartyLeader = False
@@ -161,10 +172,13 @@ async def promote(group_identifier, request, user_id, manager):
             group_identifier=group_identifier,
             player_to_update=subject_player,
         )
+        sub_payload = dict()
+        sub_payload["submitting_player"] = submitting_player.login
+        sub_payload["subject_player"] = subject_player.login
+        payload = dict()
+        payload["promoted"] = sub_payload
         await manager.match_writer(
-            group_identifier=group_identifier,
-            key="promoted",
-            value=f"{subject_player.login}",
+            group_identifier=group_identifier, dictionary=payload
         )
         return
 
@@ -391,6 +405,7 @@ async def check_connection_request(
         await redis_client.set(name=key, value=str(m.dict()))
 
     login = user_data["login"]
+
     await manager.match_writer(
         group_identifier=group_identifier,
         key="check_connection_request",
