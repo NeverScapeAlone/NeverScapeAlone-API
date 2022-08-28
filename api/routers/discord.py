@@ -14,6 +14,7 @@ from api.utilities.utils import (
 import logging
 from api.database.models import Users
 import api.database.models as models
+from api.routers.lobby import manager
 from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -178,11 +179,20 @@ async def delete_match(token: str, match_id: str) -> json:
             status_code=202,
             detail=f"bad token",
         )
-    key, m = await get_match_from_ID(group_identifier=match_id)
-    if not key:
-        return "This match does not exist."
-    if await redis_client.delete(key):
-        return f"{match_id} was deleted."
+    return_msg = await manager.dissolve_match(
+        group_identifier=match_id, disconnect_message="Deleted by Admin"
+    )
+    return return_msg
+
+
+@router.get("/V1/discord/get-all-matches", tags=["discord"])
+async def get_all_matches(token: str) -> json:
+    if token != configVars.DISCORD_TOKEN:
+        raise HTTPException(
+            status_code=202,
+            detail=f"bad token",
+        )
+    return await manager.get_all_matches()
 
 
 @router.get("/V1/discord/get-match-information", tags=["discord"])
