@@ -28,6 +28,7 @@ async def redis_health_check():
 async def load_tables_into_redis():
     await load_redis_from_sql()
     await manager.cleanup_connections()
+    await automatic_match_cleanup(manager=manager)
 
 
 @app.get("/")
