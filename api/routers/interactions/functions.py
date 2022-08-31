@@ -14,7 +14,9 @@ from api.utilities.utils import (
     search_match,
     update_player_in_group,
     verify_ID,
+    redis_decode,
 )
+
 from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)
@@ -381,7 +383,6 @@ async def update_status(group_identifier, request, websocket, user_id, login, ma
 
     payload = {"detail": "match update", "match_data": m.dict()}
     await manager.broadcast(group_identifier=group_identifier, payload=payload)
-
 
 async def check_connection_request(
     group_identifier, websocket, user_data, user_id, manager

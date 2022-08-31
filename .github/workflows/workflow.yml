@@ -13,6 +13,7 @@ jobs:
           echo "${{ secrets.SQL_URI }}" > .env
           echo "${{ secrets.DISCORD_ROUTE_TOKEN}}" >> .env
           echo "${{ secrets.REDIS_PASSWORD}}" >> .env
+          echo "${{ secrets.REDIS_DATABASE}}" >> .env
           echo "${{ secrets.DISCORD_WEBHOOK}}" >> .env
           echo "${{ secrets.GLOBAL_BROADCAST_TOKEN}}" >> .env
   deploy:

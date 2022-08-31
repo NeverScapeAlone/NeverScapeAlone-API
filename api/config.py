@@ -21,6 +21,7 @@ class Configuration:
         self.DISCORD_TOKEN = os.environ.get("discord_route_token")
         self.DISCORD_WEBHOOK = os.environ.get("discord_webhook")
         self.REDIS_PASSWORD = os.environ.get("redis_password")
+        self.REDIS_DATABASE = os.environ.get("redis_database")
         self.RATE_LIMIT_MINUTE = 120
         self.RATE_LIMIT_HOUR = 7200
         self.API_VERSION = "v2.15.1-alpha"
@@ -35,7 +36,10 @@ configVars = Configuration()
 
 
 redis_client = aioredis.from_url(
-    url="redis://touchgrass.online", port=6379, db=0, password=configVars.REDIS_PASSWORD
+    url="redis://touchgrass.online",
+    port=6379,
+    db=configVars.REDIS_DATABASE,
+    password=configVars.REDIS_PASSWORD,
 )
 
 # create application
