@@ -24,7 +24,6 @@ class Configuration:
         self.REDIS_DATABASE = os.environ.get("redis_database")
         self.RATE_LIMIT_MINUTE = 120
         self.RATE_LIMIT_HOUR = 7200
-        self.API_VERSION = "v2.15.1-alpha"
         self.MATCH_VERSION = "v2.11.1-alpha"
         self.TIMEOUT = 30 * 60  # 30 min afk timer
 
@@ -44,8 +43,8 @@ redis_client = aioredis.from_url(
 
 # create application
 app = FastAPI(
-    title="NeverScapeAlone-API",
-    version=f"{configVars.API_VERSION}",
+    title="NeverScapeAlone",
+    version=f"{configVars.MATCH_VERSION}",
     contact={
         "name": "NeverScapeAlone",
         "url": "https://twitter.com/NeverScapeAlone",

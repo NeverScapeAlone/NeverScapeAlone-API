@@ -812,7 +812,7 @@ async def automatic_match_cleanup(manager):
     ghosts = [ID for ID in managed_matches if ID not in data_matches if ID != "0"]
 
     for h in headless:
-        key, m = get_match_from_ID(h)
+        key, m = await get_match_from_ID(h)
         await redis_client.delete(key)
         logger.info(f"Headless {h} deleted.")
 
