@@ -15,7 +15,6 @@ from typing import Optional
 import aiohttp
 from api.config import configVars, redis_client
 from api.database import models
-from api.utilities.manager import ConnectionManager
 from api.database.database import USERDATA_ENGINE, Engine
 from api.database.models import AccessTokens, Users, UserToken
 from better_profanity import profanity
@@ -783,7 +782,7 @@ async def issues_to_response(data) -> list:
     return response
 
 
-async def automatic_match_cleanup(manager: ConnectionManager):
+async def automatic_match_cleanup(manager):
     """cleans up headless and ghost matches automatically
     headless matches: matches with no manager class, but there is data of the match
     ghost matches: there is no data for this match, but it exists in the manager class.
