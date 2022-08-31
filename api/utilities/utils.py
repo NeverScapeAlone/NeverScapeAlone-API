@@ -15,6 +15,7 @@ from typing import Optional
 import aiohttp
 from api.config import configVars, redis_client
 from api.database import models
+from api.utilities.manager import ConnectionManager
 from api.database.database import USERDATA_ENGINE, Engine
 from api.database.models import AccessTokens, Users, UserToken
 from better_profanity import profanity
@@ -780,3 +781,42 @@ async def issues_to_response(data) -> list:
         d["priority"] = points
         response.append(d)
     return response
+
+
+async def automatic_match_cleanup(manager: ConnectionManager):
+    """cleans up headless and ghost matches automatically
+    headless matches: matches with no manager class, but there is data of the match
+    ghost matches: there is no data for this match, but it exists in the manager class.
+    """
+
+    async def get_matches_with_data():
+        """gets matches with data, doesn't necessairly mean these matches have a manager attached to them"""
+        keys = await redis_client.keys("match:*")
+        if not keys:
+            return list()
+        data = await redis_client.mget(keys=keys)
+        if not data:
+            return list()
+        cleaned = await redis_decode(bytes_encoded=data)
+        ids = []
+        for match in cleaned:
+            m = models.match.parse_obj(match)
+            ids.append(m.ID)
+        return ids
+
+    async def get_managed_matches(manager=manager):
+        return list(manager.active_connections.keys())
+
+    data_matches = await get_matches_with_data()
+    managed_matches = await get_managed_matches()
+    headless = [ID for ID in data_matches if ID not in managed_matches]
+    ghosts = [ID for ID in managed_matches if ID not in data_matches if ID != "0"]
+
+    for h in headless:
+        key, m = get_match_from_ID(h)
+        await redis_client.delete(key)
+        logger.info(f"Headless {h} deleted.")
+
+    for g in ghosts:
+        del manager.active_connections[g]
+        logger.info(f"Ghost {g} deleted.")

@@ -124,12 +124,21 @@ class ConnectionManager:
         login = websocket.headers["Login"]
         user_id = await socket_userID(websocket=websocket)
 
+        # headless match
         if group_identifier not in list(self.active_connections.keys()):
             return
 
+        # remove the true socket connection
+        try:
+            await websocket.close(code=status.WS_1000_NORMAL_CLOSURE)
+        except Exception as e:
+            pass
+
+        # remove the socket broadcast connection
         if websocket in self.active_connections[group_identifier]:
             self.active_connections[group_identifier].remove(websocket)
 
+        # remove player from group
         if group_identifier != "0":
             d = dict()
             d["disconnect"] = login
@@ -145,17 +154,14 @@ class ConnectionManager:
                         m.players[0].isPartyLeader = True
                     else:
                         m.players.remove(player)
+
+            # if there are no more sockets attached to the self.active_connections, then delete the match's connection manager
             if not self.active_connections[group_identifier]:
                 del self.active_connections[group_identifier]
             if not m.players:
                 await redis_client.delete(key)
                 return
             await redis_client.set(name=key, value=str(m.dict()))
-
-        try:
-            await websocket.close(code=status.WS_1000_NORMAL_CLOSURE)
-        except Exception as e:
-            pass
 
     async def disconnect_other_user(
         self, group_identifier: str, user_to_disconnect: str
