@@ -28,7 +28,7 @@ async def match_history(match_identifier: str, access_token: str):
     if not re.fullmatch("^[a-z]{4,7}-[a-z]{4,7}-[a-z]{4,7}", match_identifier):
         return HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Incorrect Match Identifier format. Expected: ^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}",
+            detail="Incorrect Match Identifier format. Expected: ^[a-z]{4,7}-[a-z]{4,7}-[a-z]{4,7}",
         )
     path = "./histories/"
     filename = f"{match_identifier}.json"
