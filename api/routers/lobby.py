@@ -7,7 +7,7 @@ import websockets
 from api.config import configVars
 from api.routers.interactions.handler import handle_request
 from api.utilities.manager import ConnectionManager
-from api.utilities.utils import socket_userID, user, validate_access_token
+from api.utilities.utils import socket_userID, user, validate_access_token, sha256
 from fastapi import APIRouter, HTTPException, WebSocket, status
 import json
 
@@ -117,12 +117,12 @@ async def websocket_endpoint(
             )
 
     except websockets.exceptions.ConnectionClosedOK:
-        logger.debug(f"{websocket.client.host} => Normal Socket Closure")
+        logger.debug(f"{sha256(websocket.client.host)} => Normal Socket Closure")
         await manager.disconnect(websocket=websocket, group_identifier=group_identifier)
     except websockets.exceptions.ConnectionClosedError:
-        logger.debug(f"{websocket.client.host} => Odd closure, not a concern.")
+        logger.debug(f"{sha256(websocket.client.host)} => Odd closure, not a concern.")
         await manager.disconnect(websocket=websocket, group_identifier=group_identifier)
     except Exception as e:
-        logger.debug(f"{websocket.client.host} => {e}")
+        logger.debug(f"{sha256(websocket.client.host)} => {e}")
         print(traceback.format_exc())
         await manager.disconnect(websocket=websocket, group_identifier=group_identifier)
