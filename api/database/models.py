@@ -153,36 +153,75 @@ class location(BaseModel):
     world: int
 
 
+class equipment_item(BaseModel):
+    item_id: int
+    item_amount: Optional[int]
+
+
+class equipment(BaseModel):
+    head: Optional[equipment_item]
+    cape: Optional[equipment_item]
+    amulet: Optional[equipment_item]
+    ammo: Optional[equipment_item]
+    weapon: Optional[equipment_item]
+    body: Optional[equipment_item]
+    shield: Optional[equipment_item]
+    legs: Optional[equipment_item]
+    gloves: Optional[equipment_item]
+    boots: Optional[equipment_item]
+    ring: Optional[equipment_item]
+
+
+class inventory_item(BaseModel):
+    """inventory_item model"""
+
+    item_id: int
+    item_amount: int
+
+
+class inventory(BaseModel):
+    """inventory model"""
+
+    inventory: List[inventory_item]
+
+
 class all_search_match_info(BaseModel):
     search_matches: List[search_match_info]
+
+
+class stat_information(BaseModel):
+    boosted: int
+    real: int
+    experience: int
 
 
 class stats(BaseModel):
     """player skills"""
 
-    attack: int
-    strength: int
-    defense: int
-    ranged: int
-    prayer: int
-    magic: int
-    runecraft: int
-    construction: int
-    hitpoints: int
-    agility: int
-    herblore: int
-    thieving: int
-    crafting: int
-    fletching: int
-    slayer: int
-    hunter: int
-    mining: int
-    smithing: int
-    fishing: int
-    cooking: int
-    firemaking: int
-    woodcutting: int
-    farming: int
+    Attack: stat_information
+    Strength: stat_information
+    Defence: stat_information
+    Ranged: stat_information
+    Prayer: stat_information
+    Magic: stat_information
+    Runecraft: stat_information
+    Construction: stat_information
+    Hitpoints: stat_information
+    Agility: stat_information
+    Herblore: stat_information
+    Thieving: stat_information
+    Crafting: stat_information
+    Fletching: stat_information
+    Slayer: stat_information
+    Hunter: stat_information
+    Mining: stat_information
+    Smithing: stat_information
+    Fishing: stat_information
+    Cooking: stat_information
+    Firemaking: stat_information
+    Woodcutting: stat_information
+    Farming: stat_information
+    Overall: stat_information
 
 
 class status(BaseModel):
@@ -202,6 +241,8 @@ class player(BaseModel):
     stats: Optional[stats]
     status: Optional[status]
     location: Optional[location]
+    inventory: Optional[list[inventory_item]]
+    equipment: Optional[equipment]
     runewatch: Optional[str]
     wdr: Optional[str]
     verified: Optional[bool]

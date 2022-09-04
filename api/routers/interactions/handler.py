@@ -9,8 +9,11 @@ from api.routers.interactions.functions import (
     kick,
     promote,
     location_update,
+    inventory_update,
+    equipment_update,
     ping_update,
     search_request,
+    stats_update,
     quick_match,
     create_match_request,
     update_status,
@@ -64,6 +67,36 @@ async def handle_request(
 
         case "player_location":
             await location_update(
+                group_identifier=group_identifier,
+                request=request,
+                user_id=user_id,
+                manager=manager,
+                websocket=websocket,
+                login=login,
+            )
+
+        case "inventory_update":
+            await inventory_update(
+                group_identifier=group_identifier,
+                request=request,
+                user_id=user_id,
+                manager=manager,
+                websocket=websocket,
+                login=login,
+            )
+
+        case "stats_update":
+            await stats_update(
+                group_identifier=group_identifier,
+                request=request,
+                user_id=user_id,
+                manager=manager,
+                websocket=websocket,
+                login=login,
+            )
+
+        case "equipment_update":
+            await equipment_update(
                 group_identifier=group_identifier,
                 request=request,
                 user_id=user_id,
