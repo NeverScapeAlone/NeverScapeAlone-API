@@ -7,6 +7,7 @@ import random
 import re
 import time
 import traceback
+import string
 from asyncio.tasks import create_task
 from cgitb import text
 from collections import namedtuple
@@ -16,6 +17,7 @@ import aiohttp
 from api.config import configVars, redis_client
 from api.database import models
 from api.database.database import USERDATA_ENGINE, Engine
+from api.utilities.wordkey import WordKey
 from api.database.models import AccessTokens, Users, UserToken
 from better_profanity import profanity
 from bs4 import BeautifulSoup
@@ -28,6 +30,7 @@ from sqlalchemy.sql import text
 from sqlalchemy.sql.expression import Select, insert, select, update
 
 logger = logging.getLogger(__name__)
+wordkey = WordKey()
 
 
 class world_loader(BaseModel):
@@ -471,7 +474,7 @@ async def update_player_in_group(
 
 
 def encode(num):
-    alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    alphabet = string.ascii_letters + string.digits
     if num == 0:
         return alphabet[0]
     arr = []
@@ -486,8 +489,9 @@ def encode(num):
 
 
 def matchID():
-    ID = encode(time.time_ns())[3:][::-1]
-    ID = "-".join([ID[i : i + 4] for i in range(0, len(ID), 4)])
+    ID = encode(time.time_ns())[5:][::-1]
+    splits = [wordkey.key[ID[i : i + 2]] for i in range(0, len(ID), 2)]
+    ID = "-".join(splits)
     return ID
 
 
@@ -551,7 +555,7 @@ async def parse_sql(
 
 
 async def search_match(search: str):
-    if re.fullmatch("^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}", search):
+    if re.fullmatch("^[a-z]{4,7}-[a-z]{4,7}-[a-z]{4,7}-[a-z]{4,7}", search):
         keys = await redis_client.keys(f"match:ID={search}*")
     else:
         search = await sanitize(search)

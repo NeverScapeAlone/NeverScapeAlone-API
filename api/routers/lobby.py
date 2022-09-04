@@ -25,7 +25,9 @@ async def match_history(match_identifier: str, access_token: str):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Unauthorized Access.",
         )
-    if not re.fullmatch("^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}", match_identifier):
+    if not re.fullmatch(
+        "^[a-z]{4,7}-[a-z]{4,7}-[a-z]{4,7}-[a-z]{4,7}", match_identifier
+    ):
         return HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect Match Identifier format. Expected: ^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}",
