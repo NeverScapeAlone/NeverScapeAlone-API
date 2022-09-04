@@ -22,9 +22,10 @@ class Configuration:
         self.DISCORD_WEBHOOK = os.environ.get("discord_webhook")
         self.REDIS_PASSWORD = os.environ.get("redis_password")
         self.REDIS_DATABASE = os.environ.get("redis_database")
-        self.RATE_LIMIT_MINUTE = 120
-        self.RATE_LIMIT_HOUR = 7200
-        self.MATCH_VERSION = "v2.11.1-alpha"
+        self.REDIS_PORT = int(os.environ.get("redis_port"))
+        self.RATE_LIMIT_MINUTE = int(os.environ.get("rate_limit_minute"))
+        self.RATE_LIMIT_HOUR = int(os.environ.get("rate_limit_hour"))
+        self.MATCH_VERSION = os.environ.get("match_version")
         self.TIMEOUT = 30 * 60  # 30 min afk timer
 
     def setMATCH_VERSION(self, match_version):
@@ -36,7 +37,7 @@ configVars = Configuration()
 
 redis_client = aioredis.from_url(
     url="redis://touchgrass.online",
-    port=6379,
+    port=configVars.REDIS_PORT,
     db=configVars.REDIS_DATABASE,
     password=configVars.REDIS_PASSWORD,
 )
