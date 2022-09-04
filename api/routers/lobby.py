@@ -48,6 +48,22 @@ async def match_history(match_identifier: str, access_token: str):
     return data
 
 
+@router.get("/V2/update-version")
+async def update_version(version: str, access_token: str):
+    if not await validate_access_token(access_token=access_token):
+        return HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized Access.",
+        )
+
+    old_match_version = configVars.MATCH_VERSION
+    configVars.MATCH_VERSION = version
+    return {
+        "old_match_version": old_match_version,
+        "new_match_version": configVars.MATCH_VERSION,
+    }
+
+
 @router.get("/V2/global_broadcast")
 async def global_broadcast(message: str, authorization_token: str):
     if authorization_token[:2] != "-:":
@@ -102,7 +118,7 @@ async def websocket_endpoint(
                     websocket=websocket, group_identifier=group_identifier
                 )
             except Exception as e:
-                logger.debug(f"{login} => {e}")
+                logger.debug(f"{login} => {e} | {group_identifier}")
                 await manager.disconnect(
                     websocket=websocket, group_identifier=group_identifier
                 )

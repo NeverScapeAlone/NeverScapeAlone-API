@@ -7,6 +7,7 @@ import random
 import re
 import time
 import traceback
+import requests
 import string
 from asyncio.tasks import create_task
 from cgitb import text
@@ -552,6 +553,49 @@ async def parse_sql(
         # parsing
         sql: Text = text(sql)
     return (sql,)
+
+
+async def get_wdr_bans():
+    data = requests.get("https://wdrdev.github.io/banlist.json")
+    json_array = json.loads(data.content)
+
+    payload_list = []
+    for json_data in json_array:
+        login = "'" + json_data["CURRENT RSN"] + "'"
+        wdr = "'" + json_data["Category"].replace("'", "") + "'"
+        s = "(" + login + "," + wdr + ")"
+        payload_list.append(s)
+
+    sql = text(
+        f"""INSERT INTO users (login, wdr) VALUES {", ".join(payload_list)} ON DUPLICATE KEY UPDATE wdr = VALUES(wdr);"""
+    )
+
+    async with USERDATA_ENGINE.get_session() as session:
+        session: AsyncSession = session
+        async with session.begin():
+            await session.execute(sql)
+
+
+async def get_runewatch_bans():
+    data = requests.get("https://runewatch.com/api/v2/rsn")
+    json_nested = json.loads(data.content)
+
+    payload_list = []
+    for group in json_nested:
+        array_payload = json_nested[group][0]
+        login = "'" + array_payload["rsn"].replace("'", "") + "'"
+        runewatch = "'" + array_payload["type"].replace("'", "") + "'"
+        s = "(" + login + "," + runewatch + ")"
+        payload_list.append(s)
+
+    sql = text(
+        f"""INSERT INTO users (login, runewatch) VALUES {", ".join(payload_list)} ON DUPLICATE KEY UPDATE runewatch = VALUES(runewatch);"""
+    )
+
+    async with USERDATA_ENGINE.get_session() as session:
+        session: AsyncSession = session
+        async with session.begin():
+            await session.execute(sql)
 
 
 async def search_match(search: str):

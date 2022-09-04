@@ -22,9 +22,9 @@ class Configuration:
         self.DISCORD_WEBHOOK = os.environ.get("discord_webhook")
         self.REDIS_PASSWORD = os.environ.get("redis_password")
         self.REDIS_DATABASE = os.environ.get("redis_database")
-        self.REDIS_PORT = os.environ.get("redis_port")
-        self.RATE_LIMIT_MINUTE = os.environ.get("rate_limit_minute")
-        self.RATE_LIMIT_HOUR = os.environ.get("rate_limit_hour")
+        self.REDIS_PORT = int(os.environ.get("redis_port"))
+        self.RATE_LIMIT_MINUTE = int(os.environ.get("rate_limit_minute"))
+        self.RATE_LIMIT_HOUR = int(os.environ.get("rate_limit_hour"))
         self.MATCH_VERSION = os.environ.get("match_version")
         self.TIMEOUT = 30 * 60  # 30 min afk timer
 

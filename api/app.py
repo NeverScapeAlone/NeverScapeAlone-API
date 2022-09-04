@@ -6,7 +6,12 @@ import api.middleware
 from api.config import app, redis_client
 from api.routers import discord, lobby, status
 from api.routers.lobby import manager
-from api.utilities.utils import load_redis_from_sql, automatic_match_cleanup
+from api.utilities.utils import (
+    load_redis_from_sql,
+    automatic_match_cleanup,
+    get_runewatch_bans,
+    get_wdr_bans,
+)
 
 app.include_router(discord.router)
 app.include_router(status.router)
@@ -29,6 +34,18 @@ async def load_tables_into_redis():
     await load_redis_from_sql()
     await manager.cleanup_connections()
     await automatic_match_cleanup(manager=manager)
+
+
+@app.on_event("startup")
+@repeat_every(seconds=3600, wait_first=True, raise_exceptions=True)
+async def ban_collection():
+    try:
+        await get_wdr_bans()
+        await get_runewatch_bans()
+        logger.info(f"Ban collection finished.")
+    except Exception as e:
+        logger.warning(f"Ban collection has failed. {e}")
+        pass
 
 
 @app.get("/")
