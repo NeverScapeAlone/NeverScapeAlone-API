@@ -555,7 +555,7 @@ async def parse_sql(
 
 
 async def search_match(search: str):
-    if re.fullmatch("^[a-z]{4,7}-[a-z]{4,7}-[a-z]{4,7}-[a-z]{4,7}", search):
+    if re.fullmatch("^[a-z]{4,7}-[a-z]{4,7}-[a-z]{4,7}", search):
         keys = await redis_client.keys(f"match:ID={search}*")
     else:
         search = await sanitize(search)
