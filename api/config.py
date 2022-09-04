@@ -24,7 +24,7 @@ class Configuration:
         self.REDIS_DATABASE = os.environ.get("redis_database")
         self.RATE_LIMIT_MINUTE = 120
         self.RATE_LIMIT_HOUR = 7200
-        self.MATCH_VERSION = "v3.0.0-alpha"
+        self.MATCH_VERSION = "v2.11.1-alpha"
         self.TIMEOUT = 30 * 60  # 30 min afk timer
 
     def setMATCH_VERSION(self, match_version):
