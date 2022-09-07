@@ -135,7 +135,7 @@ async def post_match_to_discord(match: models.match):
         ],
     }
 
-    await post_url(route=configVars.DISCORD_WEBHOOK, data=webhook_payload)
+    # await post_url(route=configVars.DISCORD_WEBHOOK, data=webhook_payload)
 
 
 async def get_rating(user_id):
@@ -491,7 +491,7 @@ def encode(num):
 
 
 def matchID():
-    ID = encode(time.time_ns())[5:][::-1]
+    ID = encode(time.time_ns())[3:][::-1]
     splits = [wordkey.key[ID[i : i + 2]] for i in range(0, len(ID), 2)]
     ID = "-".join(splits)
     return ID
@@ -630,7 +630,7 @@ async def search_match(search: str):
             notes=match["notes"],
             party_members=match["party_members"],
             isPrivate=match["isPrivate"],
-            # RuneGuard=match["RuneGuard"],
+            RuneGuard=match["RuneGuard"],
             experience=requirement["experience"],
             split_type=requirement["split_type"],
             accounts=requirement["accounts"],
@@ -659,7 +659,7 @@ async def create_match(request, user_data):
     split_type = sub_payload["split_type"]
     accounts = sub_payload["accounts"]
     regions = sub_payload["regions"]
-    # RuneGuard = sub_payload["RuneGuard"]
+    RuneGuard = sub_payload["RuneGuard"]
     notes = await clean_text(sub_payload["notes"])
     group_passcode = sub_payload["group_passcode"]
     private = bool(group_passcode)
@@ -675,7 +675,7 @@ async def create_match(request, user_data):
         isPrivate=private,
         notes=notes,
         group_passcode=group_passcode,
-        # RuneGuard=RuneGuard,
+        RuneGuard=RuneGuard,
         match_version=match_version,
         requirement=models.requirement(
             experience=experience,
