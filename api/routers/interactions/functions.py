@@ -431,7 +431,7 @@ async def create_match_request(request, websocket, user_data, login, manager):
     history_initial_match["max_players"] = initial_match.party_members
     history_initial_match["is_private"] = initial_match.isPrivate
     history_initial_match["notes"] = initial_match.notes
-    history_initial_match["RuneGuard"] = initial_match.RuneGuard
+    # history_initial_match["RuneGuard"] = initial_match.RuneGuard
     history_initial_match["match_version"] = initial_match.match_version
     history_initial_match["experience"] = initial_match.requirement.experience
     history_initial_match["split_type"] = initial_match.requirement.split_type

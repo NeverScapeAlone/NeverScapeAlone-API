@@ -131,7 +131,7 @@ class search_match_info(BaseModel):
     activity: str
     party_members: str
     isPrivate: bool
-    RuneGuard: bool
+    # RuneGuard: bool
     experience: str
     split_type: str
     accounts: str
@@ -282,7 +282,7 @@ class match(BaseModel):
     party_members: str
     group_passcode: str
     isPrivate: bool
-    RuneGuard: bool
+    # RuneGuard: bool
     match_version: str
     notes: Optional[str]
     ban_list: Optional[list[int]]
