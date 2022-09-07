@@ -131,6 +131,7 @@ class search_match_info(BaseModel):
     activity: str
     party_members: str
     isPrivate: bool
+    # RuneGuard: bool
     experience: str
     split_type: str
     accounts: str
@@ -232,6 +233,7 @@ class status(BaseModel):
     prayer: int
     base_prayer: int
     run_energy: int
+    special_attack: int
 
 
 class player(BaseModel):
@@ -280,6 +282,7 @@ class match(BaseModel):
     party_members: str
     group_passcode: str
     isPrivate: bool
+    # RuneGuard: bool
     match_version: str
     notes: Optional[str]
     ban_list: Optional[list[int]]
@@ -302,3 +305,11 @@ class ping(BaseModel):
     color_b: int
     color_alpha: int
     isAlert: bool
+
+
+class chat(BaseModel):
+    """chat model"""
+
+    username: Optional[str]
+    message: str
+    timestamp: Optional[int]
