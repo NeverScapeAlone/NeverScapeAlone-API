@@ -338,14 +338,14 @@ async def chat(group_identifier, request, user_id, manager, websocket, login):
         return
     chat_message = request["chat_message"]
     chat = models.chat.parse_obj(chat_message)
-    chat.message = await clean_text(chat.message)
+    precensored, chat.message = await clean_text(chat.message)
     chat.username = login
     chat.timestamp = int(time.time())
     chat_payload = {"detail": "incoming chat", "chat_data": chat.dict()}
 
     sub_payload = dict()
     sub_payload["login"] = login
-    sub_payload["message"] = chat.message
+    sub_payload["message"] = precensored
     payload = dict()
     payload["chat"] = sub_payload
     await manager.match_writer(group_identifier=group_identifier, dictionary=payload)

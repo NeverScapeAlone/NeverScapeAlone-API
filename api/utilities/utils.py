@@ -20,6 +20,7 @@ from api.config import configVars, redis_client
 from api.database import models
 from api.database.database import USERDATA_ENGINE, Engine
 from api.utilities.wordkey import WordKey
+from api.utilities.badwords import BadWords
 from api.database.models import AccessTokens, Users, UserToken
 from better_profanity import profanity
 from bs4 import BeautifulSoup
@@ -33,6 +34,8 @@ from sqlalchemy.sql.expression import Select, insert, select, update
 
 logger = logging.getLogger(__name__)
 wordkey = WordKey()
+badwords = BadWords()
+profanity.load_censor_words(custom_words=badwords.bad_words)
 
 
 class world_loader(BaseModel):
@@ -76,17 +79,18 @@ async def clean_text(notes: str):
     if len(notes) > 200:
         notes = notes[:200]
         notes += "..."
-    notes = profanity.censor(notes)
     notes = re.sub("<[^>]*>", "", notes)
+    precensored = notes
+    notes = profanity.censor(notes)
     notes = notes.strip()
-    return notes
+    return precensored, notes
 
 
 async def post_match_to_discord(match: models.match):
 
     match_privacy = "Private" if match.isPrivate else "Public"
     activity = match.activity.replace("_", " ").title()
-    notes = await clean_text(match.notes)
+    precensored, notes = await clean_text(match.notes)
 
     webhook_payload = {
         "content": f"Updated: <t:{int(time.time())}:R>",
@@ -491,7 +495,7 @@ def encode(num):
 
 
 def matchID():
-    ID = encode(time.time_ns())[3:][::-1]
+    ID = encode(time.time_ns())[5:][::-1]
     splits = [wordkey.key[ID[i : i + 2]] for i in range(0, len(ID), 2)]
     ID = "-".join(splits)
     return ID
@@ -660,7 +664,7 @@ async def create_match(request, user_data):
     accounts = sub_payload["accounts"]
     regions = sub_payload["regions"]
     RuneGuard = sub_payload["RuneGuard"]
-    notes = await clean_text(sub_payload["notes"])
+    precensored, notes = await clean_text(sub_payload["notes"])
     group_passcode = sub_payload["group_passcode"]
     private = bool(group_passcode)
     ID = matchID()
