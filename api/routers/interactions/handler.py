@@ -7,6 +7,7 @@ from api.routers.interactions.functions import (
     like,
     dislike,
     kick,
+    chat,
     promote,
     location_update,
     inventory_update,
@@ -32,6 +33,16 @@ async def handle_request(
     login = user_data["login"]
 
     match request["detail"]:
+
+        case "chat":
+            await chat(
+                group_identifier=group_identifier,
+                request=request,
+                user_id=user_id,
+                manager=manager,
+                websocket=websocket,
+                login=login,
+            )
 
         case "like":
             await like(

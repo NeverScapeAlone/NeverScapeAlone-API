@@ -156,8 +156,9 @@ class ConnectionManager:
                         m.players.remove(player)
 
             # if there are no more sockets attached to the self.active_connections, then delete the match's connection manager
-            if not self.active_connections[group_identifier]:
-                del self.active_connections[group_identifier]
+            if group_identifier in list(self.active_connections.keys()):
+                if not self.active_connections[group_identifier]:
+                    del self.active_connections[group_identifier]
             if not m.players:
                 await redis_client.delete(key)
                 return

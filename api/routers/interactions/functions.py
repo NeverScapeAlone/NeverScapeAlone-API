@@ -1,11 +1,13 @@
 import logging
 import random
+import time
 
 import api.database.models as models
 from api.config import redis_client
 from api.utilities.utils import (
     change_rating,
     create_match,
+    clean_text,
     get_match_from_ID,
     get_party_leader_from_match_ID,
     get_rating,
@@ -329,6 +331,31 @@ async def ping_update(group_identifier, request, manager, login):
     await manager.broadcast(group_identifier=group_identifier, payload=payload)
 
 
+async def chat(group_identifier, request, user_id, manager, websocket, login):
+    if not await ratelimit(connecting_IP=websocket.client.host):
+        return
+    if group_identifier == "0":
+        return
+    chat_message = request["chat_message"]
+    chat = models.chat.parse_obj(chat_message)
+    chat.message = await clean_text(chat.message)
+    chat.username = login
+    chat.timestamp = int(time.time())
+    chat = chat.dict()
+    payload = {"detail": "incoming chat", "chat_data": chat}
+    
+    sub_payload = dict()
+    sub_payload["login"] = login
+    sub_payload["message"] = chat.message
+    payload = dict()
+    payload["chat"] = sub_payload
+    await manager.match_writer(
+        group_identifier=group_identifier, dictionary=payload
+    )
+                
+    await manager.broadcast(group_identifier=group_identifier, payload=payload)
+
+
 async def search_request(request, websocket, login, manager):
     if not await ratelimit(connecting_IP=websocket.client.host):
         return
@@ -407,6 +434,7 @@ async def create_match_request(request, websocket, user_data, login, manager):
     history_initial_match["max_players"] = initial_match.party_members
     history_initial_match["is_private"] = initial_match.isPrivate
     history_initial_match["notes"] = initial_match.notes
+    history_initial_match["RuneGuard"] = initial_match.RuneGuard
     history_initial_match["match_version"] = initial_match.match_version
     history_initial_match["experience"] = initial_match.requirement.experience
     history_initial_match["split_type"] = initial_match.requirement.split_type

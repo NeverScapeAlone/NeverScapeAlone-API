@@ -71,7 +71,7 @@ async def post_url(route, data):
             response = await resp.text()
 
 
-async def clean_notes(notes: str):
+async def clean_text(notes: str):
     if len(notes) > 200:
         notes = notes[:200]
         notes += "..."
@@ -85,7 +85,7 @@ async def post_match_to_discord(match: models.match):
 
     match_privacy = "Private" if match.isPrivate else "Public"
     activity = match.activity.replace("_", " ").title()
-    notes = await clean_notes(match.notes)
+    notes = await clean_text(match.notes)
 
     webhook_payload = {
         "content": f"Updated: <t:{int(time.time())}:R>",
@@ -134,7 +134,7 @@ async def post_match_to_discord(match: models.match):
         ],
     }
 
-    await post_url(route=configVars.DISCORD_WEBHOOK, data=webhook_payload)
+    # await post_url(route=configVars.DISCORD_WEBHOOK, data=webhook_payload)
 
 
 async def get_rating(user_id):
@@ -626,6 +626,7 @@ async def search_match(search: str):
             notes=match["notes"],
             party_members=match["party_members"],
             isPrivate=match["isPrivate"],
+            RuneGuard=match["RuneGuard"],
             experience=requirement["experience"],
             split_type=requirement["split_type"],
             accounts=requirement["accounts"],
@@ -654,7 +655,8 @@ async def create_match(request, user_data):
     split_type = sub_payload["split_type"]
     accounts = sub_payload["accounts"]
     regions = sub_payload["regions"]
-    notes = await clean_notes(sub_payload["notes"])
+    RuneGuard = sub_payload["RuneGuard"]
+    notes = await clean_text(sub_payload["notes"])
     group_passcode = sub_payload["group_passcode"]
     private = bool(group_passcode)
     ID = matchID()
@@ -669,6 +671,7 @@ async def create_match(request, user_data):
         isPrivate=private,
         notes=notes,
         group_passcode=group_passcode,
+        RuneGuard=RuneGuard,
         match_version=match_version,
         requirement=models.requirement(
             experience=experience,
