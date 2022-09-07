@@ -475,7 +475,7 @@ async def update_player_in_group(
 
 
 def encode(num):
-    alphabet = string.ascii_letters + string.digits
+    alphabet = string.ascii_lowercase + string.ascii_uppercase
     if num == 0:
         return alphabet[0]
     arr = []

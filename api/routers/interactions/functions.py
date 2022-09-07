@@ -341,19 +341,16 @@ async def chat(group_identifier, request, user_id, manager, websocket, login):
     chat.message = await clean_text(chat.message)
     chat.username = login
     chat.timestamp = int(time.time())
-    chat = chat.dict()
-    payload = {"detail": "incoming chat", "chat_data": chat}
-    
+    chat_payload = {"detail": "incoming chat", "chat_data": chat.dict()}
+
     sub_payload = dict()
     sub_payload["login"] = login
     sub_payload["message"] = chat.message
     payload = dict()
     payload["chat"] = sub_payload
-    await manager.match_writer(
-        group_identifier=group_identifier, dictionary=payload
-    )
-                
-    await manager.broadcast(group_identifier=group_identifier, payload=payload)
+    await manager.match_writer(group_identifier=group_identifier, dictionary=payload)
+
+    await manager.broadcast(group_identifier=group_identifier, payload=chat_payload)
 
 
 async def search_request(request, websocket, login, manager):
