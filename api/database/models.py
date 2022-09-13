@@ -233,7 +233,7 @@ class status(BaseModel):
     prayer: int
     base_prayer: int
     run_energy: int
-    special_attack: int
+    # special_attack: int
 
 
 class player(BaseModel):
