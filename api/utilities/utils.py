@@ -8,6 +8,7 @@ import re
 import time
 import traceback
 import requests
+import pandas as pd
 import string
 from asyncio.tasks import create_task
 from cgitb import text
@@ -566,14 +567,16 @@ async def get_wdr_bans():
         s = "(" + login + "," + wdr + ")"
         payload_list.append(s)
 
-    sql = text(
+    null_query = text(f"""UPDATE users SET runewatch = null WHERE 1=1""")
+    insert_query = text(
         f"""INSERT INTO users (login, wdr) VALUES {", ".join(payload_list)} ON DUPLICATE KEY UPDATE wdr = VALUES(wdr);"""
     )
 
     async with USERDATA_ENGINE.get_session() as session:
         session: AsyncSession = session
         async with session.begin():
-            await session.execute(sql)
+            await session.execute(null_query)
+            await session.execute(insert_query)
 
 
 async def get_runewatch_bans():
@@ -588,14 +591,15 @@ async def get_runewatch_bans():
         s = "(" + login + "," + runewatch + ")"
         payload_list.append(s)
 
-    sql = text(
+    null_query = text(f"""UPDATE users SET runewatch = null WHERE 1=1""")
+    insert_query = text(
         f"""INSERT INTO users (login, runewatch) VALUES {", ".join(payload_list)} ON DUPLICATE KEY UPDATE runewatch = VALUES(runewatch);"""
     )
-
     async with USERDATA_ENGINE.get_session() as session:
         session: AsyncSession = session
         async with session.begin():
-            await session.execute(sql)
+            await session.execute(null_query)
+            await session.execute(insert_query)
 
 
 async def search_match(search: str):
@@ -748,6 +752,24 @@ async def execute_sql(
             retry_attempt=retry_attempt + 1,
         )
     return records
+
+
+class PandasCursor:
+    def __init__(self, rows):
+        self.rows: AsyncResult = rows
+
+    def __get_values(self):
+        return self.rows.fetchall()
+
+    def __get_columns(self):
+        return self.rows.keys()
+
+    def df(self):
+        values = self.__get_values()
+        columns = self.__get_columns()
+        df = pd.DataFrame(columns=columns)
+        df = df.append(values)
+        return df
 
 
 class sql_cursor:
