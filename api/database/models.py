@@ -247,6 +247,7 @@ class player(BaseModel):
     equipment: Optional[equipment]
     runewatch: Optional[str]
     wdr: Optional[str]
+    gamestate: Optional[int]
     verified: Optional[bool]
     rating: Optional[int]
     kick_list: Optional[list[int]]

@@ -9,6 +9,7 @@ from api.routers.interactions.functions import (
     kick,
     chat,
     promote,
+    gamestate_update,
     location_update,
     inventory_update,
     equipment_update,
@@ -88,6 +89,16 @@ async def handle_request(
 
         case "inventory_update":
             await inventory_update(
+                group_identifier=group_identifier,
+                request=request,
+                user_id=user_id,
+                manager=manager,
+                websocket=websocket,
+                login=login,
+            )
+
+        case "gamestate_update":
+            await gamestate_update(
                 group_identifier=group_identifier,
                 request=request,
                 user_id=user_id,
