@@ -8,7 +8,7 @@ from api.config import configVars
 from api.routers.interactions.handler import handle_request
 from api.utilities.manager import ConnectionManager
 from api.utilities.utils import socket_userID, user, validate_access_token, sha256
-from fastapi import APIRouter, HTTPException, WebSocket, status
+from fastapi import APIRouter, HTTPException, WebSocket, status, WebSocketDisconnect
 import json
 
 logger = logging.getLogger(__name__)
@@ -25,10 +25,10 @@ async def match_history(match_identifier: str, access_token: str):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Unauthorized Access.",
         )
-    if not re.fullmatch("^[a-z]{3,7}-[a-z]{3,7}-[a-z]{3,7}", match_identifier):
+    if not re.fullmatch("^[a-z]{2,7}-[a-z]{2,7}-[a-z]{2,7}", match_identifier):
         return HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Incorrect Match Identifier format. Expected: ^[a-z]{3,7}-[a-z]{3,7}-[a-z]{3,7}",
+            detail="Incorrect Match Identifier format. Expected: ^[a-z]{2,7}-[a-z]{2,7}-[a-z]{2,7}",
         )
     path = "./histories/"
     filename = f"{match_identifier}.json"
@@ -92,12 +92,18 @@ async def websocket_endpoint(
         user_id = await socket_userID(websocket=websocket)
         if re.match("^(E:)", str(user_id)):
             error_message = user_id[2:]
-            await websocket.send_json(
-                {
-                    "detail": "global message",
-                    "server_message": {"message": error_message},
-                }
-            )
+
+            try:
+                await websocket.send_json(
+                    {
+                        "detail": "global message",
+                        "server_message": {"message": error_message},
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Unable to notify user on first-connection: {e}")
+                pass
+
             await manager.disconnect(
                 websocket=websocket, group_identifier=group_identifier
             )
@@ -117,8 +123,13 @@ async def websocket_endpoint(
                 await manager.afk_update(
                     websocket=websocket, group_identifier=group_identifier
                 )
+            except WebSocketDisconnect:
+                logger.info(f"Client has closed connection: {login}")
+                await manager.disconnect(
+                    websocket=websocket, group_identifier=group_identifier
+                )
+                return
             except Exception as e:
-                logger.debug(f"{login} => {e} | {group_identifier}")
                 await manager.disconnect(
                     websocket=websocket, group_identifier=group_identifier
                 )
@@ -139,6 +150,6 @@ async def websocket_endpoint(
         logger.debug(f"{sha256(websocket.client.host)} => Odd closure, not a concern.")
         await manager.disconnect(websocket=websocket, group_identifier=group_identifier)
     except Exception as e:
-        logger.debug(f"{sha256(websocket.client.host)} => {e}")
+        logger.error(f"{sha256(websocket.client.host)} => {e}")
         print(traceback.format_exc())
         await manager.disconnect(websocket=websocket, group_identifier=group_identifier)
