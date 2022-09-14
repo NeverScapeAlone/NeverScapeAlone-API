@@ -10,3 +10,5 @@ services:
       - "5500:5500"
     env_file:
       - .env
+    volumes:
+      - /home/ubuntu/match_histories:/code/histories:rw
