@@ -11,5 +11,6 @@ services:
     env_file:
       - .env
     volumes:
-      - /home/ubuntu/match_histories:/code/histories:rw
-      - /home/ubuntu/errors:/code/errors:rw
+      - /home/ubuntu/nsa/match_histories:/code/histories:rw
+      - /home/ubuntu/nsa/errors:/code/errors:rw
+      - /home/ubuntu/nsa/errors:/code/logs:rw
