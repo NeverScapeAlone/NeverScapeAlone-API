@@ -603,7 +603,7 @@ async def get_runewatch_bans():
 
 
 async def search_match(search: str):
-    if re.fullmatch("^[a-z]{3,7}-[a-z]{3,7}-[a-z]{3,7}", search):
+    if re.fullmatch("^[a-z]{2,7}-[a-z]{2,7}-[a-z]{2,7}", search):
         keys = await redis_client.keys(f"match:ID={search}*")
     else:
         search = await sanitize(search)
