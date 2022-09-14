@@ -10,3 +10,7 @@ services:
       - "5500:5500"
     env_file:
       - .env
+    volumes:
+      - /home/ubuntu/nsa/match_histories:/code/histories:rw
+      - /home/ubuntu/nsa/errors:/code/errors:rw
+      - /home/ubuntu/nsa/errors:/code/logs:rw
