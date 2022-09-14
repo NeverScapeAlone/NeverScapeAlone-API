@@ -12,3 +12,4 @@ services:
       - .env
     volumes:
       - /home/ubuntu/match_histories:/code/histories:rw
+      - /home/ubuntu/errors:/code/errors:rw
