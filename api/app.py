@@ -60,3 +60,10 @@ async def ban_collection():
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info(f"STOPPED NeverScapeAlone-API {configVars.MATCH_VERSION}")
+
+
+@app.get("/")
+async def root():
+    return {
+        "message": "Welcome to the NeverScapeAlone api! If you're interested in becoming a developer, please contact ferrariictweet@gmail.com!"
+    }
