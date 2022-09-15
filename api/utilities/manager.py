@@ -241,7 +241,7 @@ class ConnectionManager:
                     del self.active_connections[group_identifier]
 
             if not m.players:
-                # Likely causes matches to be unable to be reconnected to on api change. Issue #217 on NeverScapeAlone issues
+                # Likely causes matches to be unable to be reconnected to on api change. Issue #217 NeverScapeAlone issues
                 # await redis_client.delete(key)
                 return
             await redis_client.set(name=key, value=str(m.dict()))
