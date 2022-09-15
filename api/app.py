@@ -39,7 +39,7 @@ async def load_tables_into_redis():
 
 
 @app.on_event("startup")
-@repeat_every(seconds=300, wait_first=True, raise_exceptions=True)
+@repeat_every(seconds=120, wait_first=True, raise_exceptions=True)
 async def cleanup_connections():
     await manager.cleanup_connections()
     await automatic_match_cleanup(manager=manager)

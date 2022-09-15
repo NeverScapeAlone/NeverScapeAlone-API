@@ -240,9 +240,9 @@ class ConnectionManager:
                 if not self.active_connections[group_identifier]:
                     del self.active_connections[group_identifier]
 
-            # delete the match data from the database, when all players have left the group.
             if not m.players:
-                await redis_client.delete(key)
+                # Likely causes matches to be unable to be reconnected to on api change. Issue #217 on NeverScapeAlone issues
+                # await redis_client.delete(key)
                 return
             await redis_client.set(name=key, value=str(m.dict()))
 
