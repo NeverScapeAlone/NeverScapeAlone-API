@@ -199,14 +199,14 @@ class ConnectionManager:
 
         # Attempt to close the socket connection, this may fail for a variety of reasons, and should be logged accordingly.
         try:
-            logger.info(f"Disconnecting {login} from {group_identifier}")
             await websocket.close(code=status.WS_1000_NORMAL_CLOSURE)
+            logger.info(f"Disconnected {login} from {group_identifier}")
         except RuntimeError as e:
             # No need to log anything, the connection has already been closed.
             pass
         except Exception as e:
             logger.error(
-                f"Websocket Closure Error: {e}",
+                f"Socket Disconnect Error: {e}",
             )
             pass
 
@@ -405,7 +405,6 @@ class ConnectionManager:
             try:
                 (old_time, websocket, group_identifier) = self.afk_sockets[key]
                 if time.time() > old_time + configVars.TIMEOUT:
-                    del self.afk_sockets[key]
                     login = websocket.headers["Login"]
                     await self.match_writer(
                         group_identifier=group_identifier,
@@ -413,6 +412,7 @@ class ConnectionManager:
                         value=f"{login}",
                     )
                     if group_identifier != "0":
+                        del self.afk_sockets[key]
                         try:
                             await websocket.send_json(
                                 {

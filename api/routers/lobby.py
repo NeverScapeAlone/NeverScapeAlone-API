@@ -144,10 +144,10 @@ async def websocket_endpoint(
             )
 
     except websockets.exceptions.ConnectionClosedOK:
-        logger.debug(f"{sha256(websocket.client.host)} => Normal Socket Closure")
+        logger.debug(f"{sha256(websocket.client.host)} => Normal Connection Closed")
         await manager.disconnect(websocket=websocket, group_identifier=group_identifier)
     except websockets.exceptions.ConnectionClosedError:
-        logger.debug(f"{sha256(websocket.client.host)} => Odd closure, not a concern.")
+        logger.debug(f"{sha256(websocket.client.host)} => Odd Connection Closed")
         await manager.disconnect(websocket=websocket, group_identifier=group_identifier)
     except Exception as e:
         logger.error(f"{sha256(websocket.client.host)} => {e}")
