@@ -270,8 +270,6 @@ class active_match_discord(BaseModel):
 
     discord_invite: Optional[str]
     player_count: Optional[int]
-    party_members: Optional[str]
-    isPrivate: Optional[bool]
     ID: str
 
 
