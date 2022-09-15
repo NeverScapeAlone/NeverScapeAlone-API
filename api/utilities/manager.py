@@ -373,13 +373,17 @@ class ConnectionManager:
 
     async def global_broadcast(self, message: str):
         """send message to all clients on list"""
-        payload = {"detail": "global message", "server_message": {"message": message}}
         keys = list(self.active_connections.keys())
         for group_id in keys:
             if group_id != "0":
                 for connection in self.active_connections[group_id]:
                     try:
-                        await connection.send_json(payload)
+                        await connection.send_json(
+                            {
+                                "detail": "global message",
+                                "server_message": {"message": f"{message}"},
+                            }
+                        )
                     except Exception as e:
                         logger.error(
                             f"Unable to broadcast information to a connection: {e}"
