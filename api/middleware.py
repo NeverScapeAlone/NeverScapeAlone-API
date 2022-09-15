@@ -67,8 +67,9 @@ async def process_request(request: Request, call_next):
     start_time = time.time()
     response = await call_next(request)
     process_time = time.time() - start_time
-    url = request.url.remove_query_params("token")._url
-    logger.debug({"url": url, "process_time": process_time})
+    url = request.url.remove_query_params(keys=["access_token", "token"])._url
+    if url.find("\\discord\\") != -1:  # remove discord logging
+        logger.debug({"url": url, "process_time": process_time})
     return response
 
 
