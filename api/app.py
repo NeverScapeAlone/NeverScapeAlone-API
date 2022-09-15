@@ -1,4 +1,5 @@
 import logging
+import time
 
 from fastapi_utils.tasks import repeat_every
 
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 @app.on_event("startup")
 async def startup():
     # declare api start
-    logger.info(f"NeverScapeAlone-API: {configVars.MATCH_VERSION}")
+    logger.info(f"STARTED NeverScapeAlone-API {configVars.MATCH_VERSION}")
 
     # check redis server
     if await redis_client.ping():
@@ -35,6 +36,11 @@ async def startup():
 @repeat_every(seconds=5, wait_first=True, raise_exceptions=True)
 async def load_tables_into_redis():
     await load_redis_from_sql()
+
+
+@app.on_event("startup")
+@repeat_every(seconds=300, wait_first=True, raise_exceptions=True)
+async def cleanup_connections():
     await manager.cleanup_connections()
     await automatic_match_cleanup(manager=manager)
 
@@ -49,3 +55,8 @@ async def ban_collection():
     except Exception as e:
         logger.warning(f"Ban collection has failed. {e}")
         pass
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    logger.info(f"STOPPED NeverScapeAlone-API {configVars.MATCH_VERSION}")
