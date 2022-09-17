@@ -12,6 +12,9 @@ jobs:
     steps:
       - name: Test Checkout
         uses: actions/checkout@v3
+
+      - name: Set Up ENV
+        uses: actions/checkout@v3
         run: |
           echo "sql_uri = mysql+asyncmy://username:password@host:port/database" > .env
           echo "discord_route_token = token" >> .env
