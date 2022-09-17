@@ -16,17 +16,55 @@ load_dotenv(find_dotenv(), verbose=True)
 
 class Configuration:
     def __init__(self):
-        self.sql_uri = os.environ.get("sql_uri")
-        self.GLOBAL_BROADCAST_TOKEN = os.environ.get("global_broadcast_token")
-        self.DISCORD_TOKEN = os.environ.get("discord_route_token")
-        self.DISCORD_WEBHOOK = os.environ.get("discord_webhook")
-        self.REDIS_PASSWORD = os.environ.get("redis_password")
-        self.REDIS_DATABASE = os.environ.get("redis_database")
-        self.REDIS_PORT = int(os.environ.get("redis_port"))
-        self.RATE_LIMIT_MINUTE = int(os.environ.get("rate_limit_minute"))
-        self.RATE_LIMIT_HOUR = int(os.environ.get("rate_limit_hour"))
-        self.MATCH_VERSION = os.environ.get("match_version")
-        self.TIMEOUT = 30 * 60  # 30 min afk timer
+        self.sql_uri = (
+            os.environ.get("sql_uri")
+            if os.environ.get("sql_uri")
+            else "mysql+asyncmy://username:password@host:port/database"
+        )
+        self.GLOBAL_BROADCAST_TOKEN = (
+            os.environ.get("global_broadcast_token")
+            if os.environ.get("global_broadcast_token")
+            else "global_broadcast_token"
+        )
+        self.DISCORD_TOKEN = (
+            os.environ.get("discord_route_token")
+            if os.environ.get("discord_route_token")
+            else "discord_route_token"
+        )
+        self.DISCORD_WEBHOOK = (
+            os.environ.get("discord_webhook")
+            if os.environ.get("discord_webhook")
+            else "discord_webhook"
+        )
+        self.REDIS_PASSWORD = (
+            os.environ.get("redis_password")
+            if os.environ.get("redis_password")
+            else "redis_password"
+        )
+        self.REDIS_DATABASE = (
+            os.environ.get("redis_database")
+            if os.environ.get("redis_database")
+            else "1000"
+        )
+        self.REDIS_PORT = (
+            int(os.environ.get("redis_port")) if os.environ.get("redis_port") else 1000
+        )
+        self.RATE_LIMIT_MINUTE = (
+            int(os.environ.get("rate_limit_minute"))
+            if os.environ.get("rate_limit_minute")
+            else 100
+        )
+        self.RATE_LIMIT_HOUR = (
+            int(os.environ.get("rate_limit_hour"))
+            if os.environ.get("rate_limit_hour")
+            else 1000
+        )
+        self.MATCH_VERSION = (
+            os.environ.get("match_version")
+            if os.environ.get("match_version")
+            else "v0.0.0-alpha"
+        )
+        self.TIMEOUT = 30 * 60
 
     def setMATCH_VERSION(self, match_version):
         self.MATCH_VERSION = match_version
