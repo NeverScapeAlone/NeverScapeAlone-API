@@ -10,11 +10,15 @@ import aiohttp
 from api.config import configVars
 from api.utilities.wordkey import WordKey
 from better_profanity import profanity
+from api.utilities.badwords import BadWords
 from bs4 import BeautifulSoup
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
 wordkey = WordKey()
+badwords = BadWords()
+profanity.load_censor_words(custom_words=badwords.bad_words)
 
 
 class world_loader(BaseModel):
@@ -58,10 +62,11 @@ async def clean_text(notes: str):
     if len(notes) > 200:
         notes = notes[:200]
         notes += "..."
-    notes = profanity.censor(notes)
     notes = re.sub("<[^>]*>", "", notes)
+    precensored = notes
+    notes = profanity.censor(notes)
     notes = notes.strip()
-    return notes
+    return precensored, notes
 
 
 def sha256(string: str) -> str:

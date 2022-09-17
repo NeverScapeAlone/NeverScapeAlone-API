@@ -22,10 +22,18 @@ async def test_verify_ID():
 
 @pytest.mark.asyncio
 async def test_clean_notes():
-    assert await utils.clean_text("hello") == "hello"
-    assert await utils.clean_text("""<a href="www.google.com">google</a>""") == "google"
-    assert await utils.clean_text(" hello ") == "hello"
-    assert await utils.clean_text("wtf") == "****"
+    assert await utils.clean_text("hello") == ("hello", "hello")
+    assert await utils.clean_text("""<a href="www.google.com">google</a>""") == (
+        "google",
+        "google",
+    )
+    assert await utils.clean_text(" hello ") == (" hello ", "hello")
+    assert await utils.clean_text(
+        "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+    ) == (
+        "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+        "****",
+    )
 
 
 @pytest.mark.asyncio

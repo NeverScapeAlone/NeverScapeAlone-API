@@ -273,7 +273,6 @@ async def inventory_update(
 
 
 async def stats_update(group_identifier, request, user_id, manager, websocket, login):
-    """update inventory every 60 seconds per player"""
     if not await ratelimit(connecting_IP=websocket.client.host):
         return
     if group_identifier == "0":
@@ -335,14 +334,14 @@ async def chat(group_identifier, request, user_id, manager, websocket, login):
         return
     chat_message = request["chat_message"]
     chat = models.chat.parse_obj(chat_message)
-    chat.message = await clean_text(chat.message)
+    precensored, chat.message = await clean_text(chat.message)
     chat.username = login
     chat.timestamp = int(time.time())
     chat_payload = {"detail": "incoming chat", "chat_data": chat.dict()}
 
     sub_payload = dict()
     sub_payload["login"] = login
-    sub_payload["message"] = chat.message
+    sub_payload["message"] = precensored
     payload = dict()
     payload["chat"] = sub_payload
     await manager.match_writer(group_identifier=group_identifier, dictionary=payload)
@@ -428,7 +427,7 @@ async def create_match_request(request, websocket, user_data, login, manager):
     history_initial_match["max_players"] = initial_match.party_members
     history_initial_match["is_private"] = initial_match.isPrivate
     history_initial_match["notes"] = initial_match.notes
-    # history_initial_match["RuneGuard"] = initial_match.RuneGuard
+    history_initial_match["RuneGuard"] = initial_match.RuneGuard
     history_initial_match["match_version"] = initial_match.match_version
     history_initial_match["experience"] = initial_match.requirement.experience
     history_initial_match["split_type"] = initial_match.requirement.split_type
@@ -453,6 +452,31 @@ async def create_match_request(request, websocket, user_data, login, manager):
         }
     )
     await post_match_to_discord(match=initial_match)
+
+
+async def gamestate_update(
+    group_identifier, request, user_id, manager, websocket, login
+):
+    """update gamestate per player"""
+    if not await ratelimit(connecting_IP=websocket.client.host):
+        return
+    if group_identifier == "0":
+        return
+
+    gamestate = int(request["gamestate"])
+    key, m = await get_match_from_ID(group_identifier=group_identifier)
+    if not m:
+        return
+    i = 0
+    players = m.players
+    for idx, player in enumerate(players):
+        if player.user_id == user_id:
+            i = idx
+    m.players[i].gamestate = gamestate
+
+    await redis_client.set(name=key, value=str(m.dict()))
+    payload = {"detail": "match update", "match_data": m.dict()}
+    await manager.broadcast(group_identifier=group_identifier, payload=payload)
 
 
 async def update_status(group_identifier, request, websocket, user_id, login, manager):
@@ -553,7 +577,7 @@ async def search_match(search: str):
             notes=match["notes"],
             party_members=match["party_members"],
             isPrivate=match["isPrivate"],
-            # RuneGuard=match["RuneGuard"],
+            RuneGuard=match["RuneGuard"],
             experience=requirement["experience"],
             split_type=requirement["split_type"],
             accounts=requirement["accounts"],
@@ -582,8 +606,8 @@ async def create_match(request, user_data):
     split_type = sub_payload["split_type"]
     accounts = sub_payload["accounts"]
     regions = sub_payload["regions"]
-    # RuneGuard = sub_payload["RuneGuard"]
-    notes = await clean_text(sub_payload["notes"])
+    RuneGuard = sub_payload["RuneGuard"]
+    precensored, notes = await clean_text(sub_payload["notes"])
     group_passcode = sub_payload["group_passcode"]
     private = bool(group_passcode)
     ID = matchID()
@@ -598,7 +622,7 @@ async def create_match(request, user_data):
         isPrivate=private,
         notes=notes,
         group_passcode=group_passcode,
-        # RuneGuard=RuneGuard,
+        RuneGuard=RuneGuard,
         match_version=match_version,
         requirement=models.requirement(
             experience=experience,
@@ -677,7 +701,7 @@ async def post_match_to_discord(match: models.match):
 
     match_privacy = "Private" if match.isPrivate else "Public"
     activity = match.activity.replace("_", " ").title()
-    notes = await clean_text(match.notes)
+    precensored, notes = await clean_text(match.notes)
 
     webhook_payload = {
         "content": f"<@&{activityReference.pi_dict[match.activity]}> <t:{int(time.time())}:R>",
@@ -726,7 +750,7 @@ async def post_match_to_discord(match: models.match):
         ],
     }
 
-    await post_url(route=configVars.DISCORD_WEBHOOK, data=webhook_payload)
+    # await post_url(route=configVars.DISCORD_WEBHOOK, data=webhook_payload)
 
 
 async def get_rating(user_id):

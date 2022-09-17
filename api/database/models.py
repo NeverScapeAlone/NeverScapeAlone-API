@@ -131,7 +131,7 @@ class search_match_info(BaseModel):
     activity: str
     party_members: str
     isPrivate: bool
-    # RuneGuard: bool
+    RuneGuard: bool
     experience: str
     split_type: str
     accounts: str
@@ -233,7 +233,7 @@ class status(BaseModel):
     prayer: int
     base_prayer: int
     run_energy: int
-    # special_attack: int
+    special_attack: int
 
 
 class player(BaseModel):
@@ -247,6 +247,7 @@ class player(BaseModel):
     equipment: Optional[equipment]
     runewatch: Optional[str]
     wdr: Optional[str]
+    gamestate: Optional[int]
     verified: Optional[bool]
     rating: Optional[int]
     kick_list: Optional[list[int]]
@@ -282,7 +283,7 @@ class match(BaseModel):
     party_members: str
     group_passcode: str
     isPrivate: bool
-    # RuneGuard: bool
+    RuneGuard: bool
     match_version: str
     notes: Optional[str]
     ban_list: Optional[list[int]]
