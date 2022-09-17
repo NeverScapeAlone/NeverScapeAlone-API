@@ -26,7 +26,7 @@ class Configuration:
         self.RATE_LIMIT_MINUTE = int(os.environ.get("rate_limit_minute"))
         self.RATE_LIMIT_HOUR = int(os.environ.get("rate_limit_hour"))
         self.MATCH_VERSION = os.environ.get("match_version")
-        self.TIMEOUT = 30 * 60  # 30 min afk timer
+        self.TIMEOUT = 30 * 60
 
     def setMATCH_VERSION(self, match_version):
         self.MATCH_VERSION = match_version

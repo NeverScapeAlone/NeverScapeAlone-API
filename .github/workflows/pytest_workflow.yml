@@ -12,6 +12,17 @@ jobs:
     steps:
       - name: Test Checkout
         uses: actions/checkout@v3
+        run: |
+          echo "sql_uri = mysql+asyncmy://username:password@host:port/database" > .env
+          echo "discord_route_token = token" >> .env
+          echo "redis_password = hello" >> .env
+          echo "redis_database=1111" >> .env
+          echo "redis_port=1111" >> .env
+          echo "discord_webhook = webhook_token" >> .env
+          echo "global_broadcast_token = global_broadcast_token" >> .env
+          echo "rate_limit_minute=10" >> .env
+          echo "rate_limit_hour=1000" >> .env
+          echo "match_version=v3.0.0-alpha" >> .env
 
       - name: Setup Python
         uses: actions/setup-python@v4
