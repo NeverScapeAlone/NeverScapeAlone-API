@@ -1,7 +1,6 @@
 import os
 import sys
 import pytest
-import base64
 import re
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -47,12 +46,6 @@ async def test_verify_user_agent():
     assert await utils.verify_user_agent(user_agent="RuneLite-38ff4h") == True
     assert await utils.verify_user_agent(user_agent="OpenOSRS") == False
     assert await utils.verify_user_agent(user_agent="BlueLite") == False
-
-
-@pytest.mark.asyncio
-async def test_verify_plugin_version():
-    assert await utils.verify_plugin_version(plugin_version="v2.0.0-alpha") == True
-    assert await utils.verify_plugin_version(plugin_version="v1.0.0-alpha") == False
 
 
 @pytest.mark.asyncio
