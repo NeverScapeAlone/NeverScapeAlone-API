@@ -1,15 +1,17 @@
-from ast import MatchSingleton
+import json
 import logging
 import re
 import traceback
+from ast import MatchSingleton
 
 import websockets
 from api.config import configVars
 from api.routers.interactions.handler import handle_request
-from api.utilities.manager import ConnectionManager
-from api.utilities.utils import socket_userID, user, validate_access_token, sha256
-from fastapi import APIRouter, HTTPException, WebSocket, status, WebSocketDisconnect
-import json
+from api.utilities.manager.manager import ConnectionManager
+from api.utilities.manager.utils import socket_userID
+from api.utilities.mysql.utils import user, validate_access_token
+from api.utilities.utils import sha256
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, status
 
 logger = logging.getLogger(__name__)
 

@@ -7,12 +7,10 @@ import api.middleware
 from api.config import app, redis_client, configVars
 from api.routers import discord, lobby
 from api.routers.lobby import manager
-from api.utilities.utils import (
-    load_redis_from_sql,
-    automatic_match_cleanup,
-    get_runewatch_bans,
-    get_wdr_bans,
-)
+from api.utilities.redis.utils import load_redis_from_sql
+from api.utilities.manager.utils import automatic_match_cleanup
+from api.utilities.wdr.utils import get_wdr_bans
+from api.utilities.runewatch.utils import get_runewatch_bans
 
 app.include_router(discord.router)
 app.include_router(lobby.router)

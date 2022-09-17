@@ -50,7 +50,7 @@ async def test_verify_user_agent():
 
 @pytest.mark.asyncio
 async def test_verify_plugin_version():
-    assert await utils.verify_plugin_version(plugin_version="v2.0.0-alpha") == True
+    assert await utils.verify_plugin_version(plugin_version="v0.0.0-alpha") == True
     assert await utils.verify_plugin_version(plugin_version="v1.0.0-alpha") == False
 
 

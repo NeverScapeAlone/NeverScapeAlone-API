@@ -1,20 +1,18 @@
 import json
-
-from api.config import redis_client, configVars
-from api.utilities.utils import (
-    USERDATA_ENGINE,
-    is_valid_rsn,
-    sqlalchemy_result,
-    get_match_from_ID,
-    redis_decode,
-    get_plugin_version,
-    get_github_issues,
-    issues_to_response,
-)
 import logging
-from api.database.models import Users
+
 import api.database.models as models
+from api.config import configVars, redis_client
+from api.database.models import Users
 from api.routers.lobby import manager
+from api.utilities.github.utils import issues_to_response, get_github_issues
+from api.utilities.mysql.utils import USERDATA_ENGINE, sqlalchemy_result
+from api.routers.interactions.functions import get_match_from_ID
+from api.utilities.utils import (
+    get_plugin_version,
+    is_valid_rsn,
+    redis_decode,
+)
 from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession

@@ -1,22 +1,24 @@
 import logging
 import random
+import re
 import time
+
+from api.config import configVars, redis_client
+from api.database import models
+
+logger = logging.getLogger(__name__)
 
 import api.database.models as models
 from api.config import redis_client
 from api.utilities.utils import (
-    change_rating,
-    create_match,
     clean_text,
-    get_match_from_ID,
-    get_party_leader_from_match_ID,
-    get_rating,
-    post_match_to_discord,
-    ratelimit,
-    search_match,
-    update_player_in_group,
+    matchID,
+    post_url,
+    redis_decode,
+    sanitize,
     verify_ID,
 )
+from api.utilities.ratelimiter.utils import ratelimit
 
 from fastapi import WebSocket
 
@@ -512,3 +514,231 @@ async def check_connection_request(
     await websocket.send_json(
         {"detail": "successful connection", "match_data": m.dict()}
     )
+
+
+async def change_rating(request_id, user_id: int, is_like):
+    # Prevent user from rating self
+    if request_id == str(user_id):
+        return False
+    # Verify that incoming ID is of correct format
+    if not await verify_ID(user_id=request_id):
+        return False
+    key = f"rating:{request_id}:{user_id}"
+    vote = 1 if is_like else 0
+    await redis_client.set(name=key, value=int(vote))
+    return True
+
+
+async def search_match(search: str):
+    if re.fullmatch("^[a-z]{2,7}-[a-z]{2,7}-[a-z]{2,7}", search):
+        keys = await redis_client.keys(f"match:ID={search}*")
+    else:
+        search = await sanitize(search)
+        keys = await redis_client.keys(f"match:*ACTIVITY={search}*")
+    keys = keys[:50]
+    values = await redis_client.mget(keys)
+    if not values:
+        return None
+    match_data = await redis_decode(values)
+
+    search_matches = []
+    for match in match_data:
+        requirement = match["requirement"]
+
+        party_leader = "NO LEADER"
+        for player in match["players"]:
+            if player["isPartyLeader"] != True:
+                continue
+            party_leader = player["login"]
+
+        val = models.search_match_info(
+            ID=str(match["ID"]),
+            activity=match["activity"],
+            notes=match["notes"],
+            party_members=match["party_members"],
+            isPrivate=match["isPrivate"],
+            # RuneGuard=match["RuneGuard"],
+            experience=requirement["experience"],
+            split_type=requirement["split_type"],
+            accounts=requirement["accounts"],
+            regions=requirement["regions"],
+            player_count=str(len(match["players"])),
+            match_version=match["match_version"],
+            party_leader=party_leader,
+        )
+        search_matches.append(val)
+    data = models.all_search_match_info(search_matches=search_matches)
+    return data
+
+
+async def create_match(request, user_data):
+    discord = user_data["discord"]
+    user_id = user_data["user_id"]
+    verified = user_data["verified"]
+    runewatch = user_data["runewatch"]
+    wdr = user_data["wdr"]
+    login = user_data["login"]
+
+    sub_payload = request["create_match"]
+    activity = sub_payload["activity"]
+    party_members = sub_payload["party_members"]
+    experience = sub_payload["experience"]
+    split_type = sub_payload["split_type"]
+    accounts = sub_payload["accounts"]
+    regions = sub_payload["regions"]
+    # RuneGuard = sub_payload["RuneGuard"]
+    notes = await clean_text(sub_payload["notes"])
+    group_passcode = sub_payload["group_passcode"]
+    private = bool(group_passcode)
+    ID = matchID()
+    match_version = configVars.MATCH_VERSION
+
+    rating = await get_rating(user_id=user_id)
+
+    initial_match = models.match(
+        ID=ID,
+        activity=activity,
+        party_members=party_members,
+        isPrivate=private,
+        notes=notes,
+        group_passcode=group_passcode,
+        # RuneGuard=RuneGuard,
+        match_version=match_version,
+        requirement=models.requirement(
+            experience=experience,
+            split_type=split_type,
+            accounts=accounts,
+            regions=regions,
+        ),
+        players=[
+            # the first player to be added to the group
+            models.player(
+                discord="NONE" if discord is None else discord,
+                isPartyLeader=True,
+                verified=verified,
+                user_id=user_id,
+                login=login,
+                rating=rating,
+                runewatch=runewatch,
+                wdr=wdr,
+            )
+        ],
+    )
+    return initial_match
+
+
+async def get_match_from_ID(group_identifier):
+    pattern = f"match:ID={group_identifier}*"
+    keys = await redis_client.keys(pattern)
+    if not keys:
+        return None, None
+    key = keys[0]
+    match = await redis_client.get(key)
+    if not match:
+        return None, None
+    data = await redis_decode(bytes_encoded=match)
+    m = models.match.parse_obj(data[0])
+    return key, m
+
+
+async def update_player_in_group(
+    group_identifier: int, player_to_update: models.player
+):
+    key, m = await get_match_from_ID(group_identifier)
+    if not m:
+        return
+    for idx, player in enumerate(m.players):
+        if player.user_id == player_to_update.user_id:
+            break
+    m.players[idx] = player_to_update
+    await redis_client.set(name=key, value=m.dict())
+
+
+async def get_party_leader_from_match_ID(group_identifier: int) -> models.player:
+    key, m = await get_match_from_ID(group_identifier)
+    if not m:
+        return
+    for player in m.players:
+        if player.isPartyLeader:
+            return player
+    return None
+
+
+async def update_player_in_group(
+    group_identifier: int, player_to_update: models.player
+):
+    key, m = await get_match_from_ID(group_identifier)
+    if not m:
+        return
+    for idx, player in enumerate(m.players):
+        if player.user_id == player_to_update.user_id:
+            break
+    m.players[idx] = player_to_update
+    await redis_client.set(name=key, value=str(m.dict()))
+
+
+async def post_match_to_discord(match: models.match):
+
+    match_privacy = "Private" if match.isPrivate else "Public"
+    activity = match.activity.replace("_", " ").title()
+    notes = await clean_text(match.notes)
+
+    webhook_payload = {
+        "content": f"Updated: <t:{int(time.time())}:R>",
+        "embeds": [
+            {
+                "author": {
+                    "name": f"{match.players[0].login}",
+                    "icon_url": "https://i.imgur.com/dHLO8KM.png",
+                },
+                "title": f"{activity}",
+                "description": f"Match ID: **{match.ID}**",
+                "fields": [
+                    {"name": "Privacy", "value": f"{match_privacy}", "inline": True},
+                    {
+                        "name": "Size",
+                        "value": f"{match.party_members}",
+                        "inline": True,
+                    },
+                    {
+                        "name": "Accounts",
+                        "value": f"{match.requirement.accounts}",
+                        "inline": True,
+                    },
+                    {
+                        "name": "Experience",
+                        "value": f"{match.requirement.experience}",
+                        "inline": True,
+                    },
+                    {
+                        "name": "Split Type",
+                        "value": f"{match.requirement.split_type}",
+                        "inline": True,
+                    },
+                    {
+                        "name": "Regions",
+                        "value": f"{match.requirement.regions}",
+                        "inline": True,
+                    },
+                    {
+                        "name": "Notes",
+                        "value": f"`{notes}`",
+                        "inline": True,
+                    },
+                ],
+            }
+        ],
+    }
+
+    await post_url(route=configVars.DISCORD_WEBHOOK, data=webhook_payload)
+
+
+async def get_rating(user_id):
+    keys = await redis_client.keys(f"rating:{user_id}:*")
+    if not keys:
+        return -1
+    rating_values = await redis_client.mget(keys)
+    rating_list = [int(rating) for rating in rating_values]
+    if len(rating_list) <= 10:
+        return -1
+    return int((rating_list.count(1) / len(rating_list)) * 50)
