@@ -16,7 +16,6 @@ from api.utilities.utils import (
     search_match,
     update_player_in_group,
     verify_ID,
-    redis_decode,
 )
 
 from fastapi import WebSocket
