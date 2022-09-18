@@ -1,12 +1,10 @@
-name: Pytest workflow
+name: Pull workflow
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main, develop]
 
 jobs:
-  test:
+  pytest:
     runs-on: ubuntu-22.04
     timeout-minutes: 2
     steps:

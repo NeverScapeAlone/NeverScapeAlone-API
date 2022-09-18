@@ -1,15 +1,37 @@
-name: Deployment workflow
+name: Push workflow
 on:
   push:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
+  pytest:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 2
+    steps:
+      - name: Test Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.X"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Pytest
+        run: |
+          pytest tests
+
   checkout:
+    needs: pytest
     runs-on: self-hosted
     steps:
-    - uses: actions/checkout@v2
-    - name: Set Up ENV
-      run: |
+      - uses: actions/checkout@v2
+      - name: Set Up ENV
+        run: |
           echo "${{ secrets.SQL_URI }}" > .env
           echo "${{ secrets.DISCORD_ROUTE_TOKEN}}" >> .env
           echo "${{ secrets.REDIS_PASSWORD}}" >> .env
@@ -20,9 +42,10 @@ jobs:
           echo "${{ secrets.RATE_LIMIT_MINUTE}}" >> .env
           echo "${{ secrets.RATE_LIMIT_HOUR}}" >> .env
           echo "${{ secrets.MATCH_VERSION}}" >> .env
+
   deploy:
     runs-on: self-hosted
-    needs: [checkout]
+    needs: checkout
     steps:
       - name: Docker
         run: |
