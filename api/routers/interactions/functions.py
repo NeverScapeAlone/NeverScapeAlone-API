@@ -3,13 +3,11 @@ import random
 import re
 import time
 
+import api.database.models as models
 from api.config import configVars, redis_client
 from api.database import models
-
-logger = logging.getLogger(__name__)
-
-import api.database.models as models
-from api.config import redis_client
+from api.utilities.activities import ActivityReference
+from api.utilities.ratelimiter.utils import ratelimit
 from api.utilities.utils import (
     clean_text,
     matchID,
@@ -18,11 +16,9 @@ from api.utilities.utils import (
     sanitize,
     verify_ID,
 )
-from api.utilities.ratelimiter.utils import ratelimit
-
-from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)
+activityReference = ActivityReference()
 
 
 async def like(group_identifier, request, user_id, manager):
@@ -684,7 +680,7 @@ async def post_match_to_discord(match: models.match):
     notes = await clean_text(match.notes)
 
     webhook_payload = {
-        "content": f"Updated: <t:{int(time.time())}:R>",
+        "content": f"<@&{activityReference.pi_dict[match.activity]}> <t:{int(time.time())}:R>",
         "embeds": [
             {
                 "author": {
