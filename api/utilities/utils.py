@@ -102,21 +102,21 @@ async def verify_plugin_version(plugin_version):
 
 
 async def is_valid_rsn(login: str) -> bool:
-    if not re.fullmatch("[\w\d\s_-]{1,12}", login):
+    if not re.fullmatch(r"[\w\d\s_-]{1,12}", login):
         return False
     return True
 
 
 async def validate_discord(discord: str):
     if re.fullmatch(
-        "^(?:[A-Za-z\d+/]{4})*(?:[A-Za-z\d+/]{3}=|[A-Za-z\d+/]{2}==)?$", discord
+        r"^(?:[A-Za-z\d+/]{4})*(?:[A-Za-z\d+/]{3}=|[A-Za-z\d+/]{2}==)?$", discord
     ):
         return discord
     return False
 
 
 async def verify_token_construction(token: str) -> bool:
-    if not re.fullmatch("[\w\d\s_-]{32}", token):
+    if not re.fullmatch(r"[\w\d\s_-]{32}", token):
         return False
     return True
 
@@ -124,7 +124,7 @@ async def verify_token_construction(token: str) -> bool:
 async def verify_discord_id(discord_id: str) -> bool:
     if discord_id == "NULL":
         return True
-    if not re.fullmatch("^[\d]*", discord_id):
+    if not re.fullmatch(r"^[\d]*", discord_id):
         return False
     return True
 

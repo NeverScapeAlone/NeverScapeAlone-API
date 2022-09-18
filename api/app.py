@@ -49,7 +49,6 @@ async def ban_collection():
     try:
         await get_wdr_bans()
         await get_runewatch_bans()
-        logger.info(f"Ban collection finished.")
     except Exception as e:
         logger.warning(f"Ban collection has failed. {e}")
         pass

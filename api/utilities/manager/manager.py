@@ -241,10 +241,10 @@ class ConnectionManager:
                 if not self.active_connections[group_identifier]:
                     del self.active_connections[group_identifier]
 
-            if not m.players:
-                # Likely causes matches to be unable to be reconnected to on api change. Issue #217 NeverScapeAlone issues
-                # await redis_client.delete(key)
-                return
+            # if not m.players:
+            #     # Likely causes matches to be unable to be reconnected to on api change. Issue #217 NeverScapeAlone issues
+            #     # await redis_client.delete(key)
+            #     return
             await redis_client.set(name=key, value=str(m.dict()))
 
     async def disconnect_other_user(
@@ -412,8 +412,8 @@ class ConnectionManager:
                         key="afk_cleanup",
                         value=f"{login}",
                     )
+                    del self.afk_sockets[key]
                     if group_identifier != "0":
-                        del self.afk_sockets[key]
                         try:
                             await websocket.send_json(
                                 {
@@ -430,7 +430,7 @@ class ConnectionManager:
                         websocket=websocket, group_identifier=group_identifier
                     )
             except Exception as e:
-                logger.info(e)
+                logger.error(f"An error occured while cleaning connections: {e}")
                 pass
 
     async def check_connection(
