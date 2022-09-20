@@ -550,6 +550,7 @@ async def change_rating(request_id, user_id: int, is_like):
 
 
 async def search_match(search: str):
+    search = search.strip()
     if re.fullmatch("^[a-z]{2,7}-[a-z]{2,7}-[a-z]{2,7}", search):
         keys = await redis_client.keys(f"match:ID={search}*")
     else:
