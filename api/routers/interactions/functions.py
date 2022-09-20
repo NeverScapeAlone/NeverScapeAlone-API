@@ -468,7 +468,7 @@ async def gamestate_update(
     if group_identifier == "0":
         return
 
-    gamestate = int(request["gamestate"])
+    gamestate = int(request.gamestate)
     key, m = await get_match_from_ID(group_identifier=group_identifier)
     if not m:
         return
