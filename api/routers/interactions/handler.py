@@ -27,13 +27,17 @@ logger = logging.getLogger(__name__)
 
 
 async def handle_request(
-    request: dict, user_data: dict, group_identifier: str, websocket: WebSocket, manager
+    request: models.request,
+    user_data: dict,
+    group_identifier: str,
+    websocket: WebSocket,
+    manager,
 ):
 
     user_id = user_data["user_id"]
     login = user_data["login"]
 
-    match request["detail"]:
+    match request.detail:
 
         case "chat":
             await chat(

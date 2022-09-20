@@ -1,3 +1,4 @@
+from ctypes.wintypes import PINT
 from typing import List, Optional
 from xmlrpc.client import Boolean
 
@@ -8,10 +9,10 @@ from sqlalchemy import (
     TIMESTAMP,
     VARCHAR,
     BigInteger,
+    Boolean,
     Column,
     ForeignKey,
     Integer,
-    Boolean,
 )
 from sqlalchemy.dialects.mysql import TEXT, TINYINT, VARCHAR
 from sqlalchemy.dialects.mysql.types import TINYTEXT
@@ -314,3 +315,38 @@ class chat(BaseModel):
     username: Optional[str]
     message: str
     timestamp: Optional[int]
+
+
+class create_match(BaseModel):
+    """create match payload"""
+
+    activity: str
+    party_members: str
+    experience: str
+    split_type: str
+    accounts: str
+    regions: str
+    RuneGuard: str
+    notes: str
+    group_passcode: str
+
+
+class request(BaseModel):
+    """incoming request model from the client"""
+
+    detail: str
+    chat_message: Optional[chat]
+    like: Optional[int]
+    dislike: Optional[int]
+    kick: Optional[int]
+    promote: Optional[int]
+    status: Optional[status]
+    location: Optional[location]
+    inventory: Optional[List[inventory_item]]
+    stats: Optional[stats]
+    equipment: Optional[equipment]
+    ping_payload: Optional[ping]
+    search: Optional[str]
+    match_list: Optional[List[str]]
+    gamestate: Optional[int]
+    create_match: Optional[create_match]

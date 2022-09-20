@@ -11,6 +11,7 @@ from api.utilities.manager.manager import ConnectionManager
 from api.utilities.manager.utils import socket_userID
 from api.utilities.mysql.utils import user, validate_access_token
 from api.utilities.utils import sha256
+from api.database import models
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, status
 
 logger = logging.getLogger(__name__)
@@ -94,7 +95,6 @@ async def websocket_endpoint(
         user_id = await socket_userID(websocket=websocket)
         if re.match("^(E:)", str(user_id)):
             error_message = user_id[2:]
-
             try:
                 await websocket.send_json(
                     {
@@ -118,6 +118,9 @@ async def websocket_endpoint(
         while True:
             try:
                 request = await websocket.receive_json()
+                print(request)
+                request = models.request.parse_obj(request)
+
                 if not await manager.check_connection(
                     websocket=websocket, group_identifier=group_identifier
                 ):
@@ -132,6 +135,9 @@ async def websocket_endpoint(
                 )
                 return
             except Exception as e:
+                logger.info(
+                    f"There was an error parsing the incoming request: {login} | {e}"
+                )
                 await manager.disconnect(
                     websocket=websocket, group_identifier=group_identifier
                 )
