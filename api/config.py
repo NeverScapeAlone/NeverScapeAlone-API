@@ -19,7 +19,7 @@ class Configuration:
         self.sql_uri = (
             os.environ.get("sql_uri")
             if os.environ.get("sql_uri")
-            else "mysql+asyncmy://username:password@host:port/database"
+            else "mysql+asyncmy://username:password@host:3306/database"
         )
         self.GLOBAL_BROADCAST_TOKEN = (
             os.environ.get("global_broadcast_token")
@@ -72,9 +72,9 @@ class Configuration:
 
 configVars = Configuration()
 
-
+# redis client
 redis_client = aioredis.from_url(
-    url="redis://touchgrass.online",
+    url="redis://neverscapealone.com",
     port=configVars.REDIS_PORT,
     db=configVars.REDIS_DATABASE,
     password=configVars.REDIS_PASSWORD,
