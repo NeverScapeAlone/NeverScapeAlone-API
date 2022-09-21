@@ -21,13 +21,13 @@ async def request_handler(request: Request, call_next):
 
 
 async def redis_ratelimit(request: Request):
-    client_host = request.client.host
+    client_host = sha256(request.client.host)
 
     minute = int(time.time() / 60)
     hour = int(time.time() / 3600)
 
-    client_minute = sha256(f"minute:{client_host}:{minute}")
-    client_hour = sha256(f"hour:{client_host}:{hour}")
+    client_minute = f"minute:{client_host}:{minute}"
+    client_hour = f"hour:{client_host}:{hour}"
 
     minute_hits, hour_hits = await redis_client.mget(keys=[client_minute, client_hour])
 
