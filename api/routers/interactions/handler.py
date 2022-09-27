@@ -15,6 +15,7 @@ from api.routers.interactions.functions import (
     gamestate_update,
     ping_update,
     search_request,
+    prayer_update,
     stats_update,
     quick_match,
     create_match_request,
@@ -93,6 +94,16 @@ async def handle_request(
 
         case "inventory_update":
             await inventory_update(
+                group_identifier=group_identifier,
+                request=request,
+                user_id=user_id,
+                manager=manager,
+                websocket=websocket,
+                login=login,
+            )
+
+        case "prayer_update":
+            await prayer_update(
                 group_identifier=group_identifier,
                 request=request,
                 user_id=user_id,

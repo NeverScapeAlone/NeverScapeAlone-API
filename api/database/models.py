@@ -181,10 +181,11 @@ class inventory_item(BaseModel):
     item_amount: int
 
 
-class inventory(BaseModel):
-    """inventory model"""
+class prayer_slot(BaseModel):
+    """prayer slot"""
 
-    inventory: List[inventory_item]
+    prayer_name: str
+    prayer_varbit: int
 
 
 class all_search_match_info(BaseModel):
@@ -245,6 +246,7 @@ class player(BaseModel):
     status: Optional[status]
     location: Optional[location]
     inventory: Optional[list[inventory_item]]
+    prayer: Optional[list[prayer_slot]]
     equipment: Optional[equipment]
     runewatch: Optional[str]
     wdr: Optional[str]
@@ -344,6 +346,7 @@ class request(BaseModel):
     location: Optional[location]
     inventory: Optional[List[inventory_item]]
     stats: Optional[stats]
+    prayer: Optional[List[prayer_slot]]
     equipment: Optional[equipment]
     ping_payload: Optional[ping]
     search: Optional[str]

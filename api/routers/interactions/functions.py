@@ -271,6 +271,30 @@ async def inventory_update(
     await manager.broadcast(group_identifier=group_identifier, payload=payload)
 
 
+async def prayer_update(
+    group_identifier, request: models.request, user_id, manager, websocket, login
+):
+    """update prayer player"""
+    if not await ratelimit(connecting_IP=websocket.client.host):
+        return
+    if group_identifier == "0":
+        return
+
+    prayer = request.prayer
+    key, m = await get_match_from_ID(group_identifier=group_identifier)
+    if not m:
+        return
+    i = 0
+    players = m.players
+    for idx, player in enumerate(players):
+        if player.user_id == user_id:
+            i = idx
+    m.players[i].prayer = prayer
+    await redis_client.set(name=key, value=str(m.dict()))
+
+    payload = {"detail": "match update", "match_data": m.dict()}
+    await manager.broadcast(group_identifier=group_identifier, payload=payload)
+
 async def stats_update(
     group_identifier, request: models.request, user_id, manager, websocket, login
 ):
