@@ -295,6 +295,7 @@ async def prayer_update(
     payload = {"detail": "match update", "match_data": m.dict()}
     await manager.broadcast(group_identifier=group_identifier, payload=payload)
 
+
 async def stats_update(
     group_identifier, request: models.request, user_id, manager, websocket, login
 ):
@@ -478,6 +479,7 @@ async def create_match_request(
             "detail": "request join new match",
             "join": f"{initial_match.ID}",
             "passcode": f"{initial_match.group_passcode}",
+            "RuneGuard": f"{initial_match.RuneGuard}",
         }
     )
     await post_match_to_discord(match=initial_match)
