@@ -118,7 +118,6 @@ async def websocket_endpoint(
         while True:
             try:
                 request = await websocket.receive_json()
-                print(request)
                 request = models.request.parse_obj(request)
 
                 if not await manager.check_connection(

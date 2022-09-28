@@ -782,7 +782,7 @@ async def post_match_to_discord(match: models.match):
         ],
     }
 
-    # await post_url(route=configVars.DISCORD_WEBHOOK, data=webhook_payload)
+    await post_url(route=configVars.DISCORD_WEBHOOK, data=webhook_payload)
 
 
 async def get_rating(user_id):
