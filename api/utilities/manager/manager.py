@@ -217,6 +217,11 @@ class ConnectionManager:
         if websocket in self.active_connections[group_identifier]:
             self.active_connections[group_identifier].remove(websocket)
 
+        # deletes the AFK socket tracker for timing, preventing a delayed AFK disconnect
+        k = f"{login}:{group_identifier}"
+        if k in self.afk_sockets.keys():
+            del self.afk_sockets[k]
+
         # remove the corresponding websocket's player object from the relevant match data.
         # this prevents 'headless players' from being within the match, while their data may exist,
         # the player itself would be unmanaged, and therefore could not be interacted with.
@@ -395,9 +400,10 @@ class ConnectionManager:
     async def afk_update(self, websocket: WebSocket, group_identifier: str):
         """updates the afk timer in self.afk_sockets, if this value gets too high the socket is disconnected."""
         user_agent = websocket.headers["User-Agent"]
+        login = websocket.headers["Login"]
         plugin_version = websocket.headers["Version"]
         token = websocket.headers["Token"]
-        key = sha256(string=f"{user_agent}{plugin_version}{token}{group_identifier}")
+        key = f"{login}:{group_identifier}"
         self.afk_sockets[key] = (time.time(), websocket, group_identifier)
 
     async def cleanup_connections(self):
@@ -406,13 +412,13 @@ class ConnectionManager:
             try:
                 (old_time, websocket, group_identifier) = self.afk_sockets[key]
                 if time.time() > old_time + configVars.TIMEOUT:
+                    del self.afk_sockets[key]
                     login = websocket.headers["Login"]
                     await self.match_writer(
                         group_identifier=group_identifier,
                         key="afk_cleanup",
                         value=f"{login}",
                     )
-                    del self.afk_sockets[key]
                     if group_identifier != "0":
                         try:
                             await websocket.send_json(

@@ -1,9 +1,7 @@
 import logging
-import time
 
 from fastapi_utils.tasks import repeat_every
 
-import api.middleware
 from api.config import app, redis_client, configVars
 from api.routers import discord, lobby
 from api.routers.lobby import manager

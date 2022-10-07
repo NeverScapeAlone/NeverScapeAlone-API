@@ -1,3 +1,4 @@
+from ctypes.wintypes import PINT
 from typing import List, Optional
 from xmlrpc.client import Boolean
 
@@ -8,10 +9,10 @@ from sqlalchemy import (
     TIMESTAMP,
     VARCHAR,
     BigInteger,
+    Boolean,
     Column,
     ForeignKey,
     Integer,
-    Boolean,
 )
 from sqlalchemy.dialects.mysql import TEXT, TINYINT, VARCHAR
 from sqlalchemy.dialects.mysql.types import TINYTEXT
@@ -131,7 +132,7 @@ class search_match_info(BaseModel):
     activity: str
     party_members: str
     isPrivate: bool
-    # RuneGuard: bool
+    RuneGuard: bool
     experience: str
     split_type: str
     accounts: str
@@ -180,10 +181,11 @@ class inventory_item(BaseModel):
     item_amount: int
 
 
-class inventory(BaseModel):
-    """inventory model"""
+class prayer_slot(BaseModel):
+    """prayer slot"""
 
-    inventory: List[inventory_item]
+    prayer_name: str
+    prayer_varbit: int
 
 
 class all_search_match_info(BaseModel):
@@ -233,7 +235,7 @@ class status(BaseModel):
     prayer: int
     base_prayer: int
     run_energy: int
-    # special_attack: int
+    special_attack: int
 
 
 class player(BaseModel):
@@ -244,9 +246,11 @@ class player(BaseModel):
     status: Optional[status]
     location: Optional[location]
     inventory: Optional[list[inventory_item]]
+    prayer: Optional[list[prayer_slot]]
     equipment: Optional[equipment]
     runewatch: Optional[str]
     wdr: Optional[str]
+    gamestate: Optional[int]
     verified: Optional[bool]
     rating: Optional[int]
     kick_list: Optional[list[int]]
@@ -282,7 +286,7 @@ class match(BaseModel):
     party_members: str
     group_passcode: str
     isPrivate: bool
-    # RuneGuard: bool
+    RuneGuard: bool
     match_version: str
     notes: Optional[str]
     ban_list: Optional[list[int]]
@@ -313,3 +317,39 @@ class chat(BaseModel):
     username: Optional[str]
     message: str
     timestamp: Optional[int]
+
+
+class create_match(BaseModel):
+    """create match payload"""
+
+    activity: str
+    party_members: str
+    experience: str
+    split_type: str
+    accounts: str
+    regions: str
+    RuneGuard: str
+    notes: str
+    group_passcode: str
+
+
+class request(BaseModel):
+    """incoming request model from the client"""
+
+    detail: str
+    chat_message: Optional[chat]
+    like: Optional[int]
+    dislike: Optional[int]
+    kick: Optional[int]
+    promote: Optional[int]
+    status: Optional[status]
+    location: Optional[location]
+    inventory: Optional[List[inventory_item]]
+    stats: Optional[stats]
+    prayer: Optional[List[prayer_slot]]
+    equipment: Optional[equipment]
+    ping_payload: Optional[ping]
+    search: Optional[str]
+    match_list: Optional[List[str]]
+    gamestate: Optional[int]
+    create_match: Optional[create_match]

@@ -12,8 +12,10 @@ from api.routers.interactions.functions import (
     location_update,
     inventory_update,
     equipment_update,
+    gamestate_update,
     ping_update,
     search_request,
+    prayer_update,
     stats_update,
     quick_match,
     create_match_request,
@@ -26,13 +28,17 @@ logger = logging.getLogger(__name__)
 
 
 async def handle_request(
-    request: dict, user_data: dict, group_identifier: str, websocket: WebSocket, manager
+    request: models.request,
+    user_data: dict,
+    group_identifier: str,
+    websocket: WebSocket,
+    manager,
 ):
 
     user_id = user_data["user_id"]
     login = user_data["login"]
 
-    match request["detail"]:
+    match request.detail:
 
         case "chat":
             await chat(
@@ -96,8 +102,28 @@ async def handle_request(
                 login=login,
             )
 
+        case "prayer_update":
+            await prayer_update(
+                group_identifier=group_identifier,
+                request=request,
+                user_id=user_id,
+                manager=manager,
+                websocket=websocket,
+                login=login,
+            )
+
         case "stats_update":
             await stats_update(
+                group_identifier=group_identifier,
+                request=request,
+                user_id=user_id,
+                manager=manager,
+                websocket=websocket,
+                login=login,
+            )
+
+        case "gamestate_update":
+            await gamestate_update(
                 group_identifier=group_identifier,
                 request=request,
                 user_id=user_id,

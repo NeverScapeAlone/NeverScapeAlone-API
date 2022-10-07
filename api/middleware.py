@@ -3,6 +3,7 @@ import time
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from api.utilities.utils import sha256
 
 from api.config import app, redis_client, configVars
 import json
@@ -20,7 +21,7 @@ async def request_handler(request: Request, call_next):
 
 
 async def redis_ratelimit(request: Request):
-    client_host = request.client.host
+    client_host = sha256(request.client.host)
 
     minute = int(time.time() / 60)
     hour = int(time.time() / 3600)

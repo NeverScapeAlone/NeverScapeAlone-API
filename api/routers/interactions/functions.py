@@ -21,10 +21,10 @@ logger = logging.getLogger(__name__)
 activityReference = ActivityReference()
 
 
-async def like(group_identifier, request, user_id, manager):
+async def like(group_identifier, request: models.request, user_id, manager):
     if group_identifier == "0":
         return
-    request_id = request["like"]
+    request_id = request.like
     if await change_rating(request_id=request_id, user_id=user_id, is_like=True):
         sub_payload = dict()
         sub_payload["liker"] = user_id
@@ -36,10 +36,10 @@ async def like(group_identifier, request, user_id, manager):
         )
 
 
-async def dislike(group_identifier, request, user_id, manager):
+async def dislike(group_identifier, request: models.request, user_id, manager):
     if group_identifier == "0":
         return
-    request_id = request["dislike"]
+    request_id = request.dislike
     if await change_rating(request_id=request_id, user_id=user_id, is_like=False):
         sub_payload = dict()
         sub_payload["disliker"] = user_id
@@ -51,10 +51,10 @@ async def dislike(group_identifier, request, user_id, manager):
         )
 
 
-async def kick(group_identifier, request, user_id, manager):
+async def kick(group_identifier, request: models.request, user_id, manager):
     if group_identifier == "0":
         return
-    kick_id = request["kick"]
+    kick_id = request.kick
     if not await verify_ID(user_id=kick_id):
         return
     if kick_id == str(user_id):
@@ -129,10 +129,10 @@ async def kick(group_identifier, request, user_id, manager):
         return
 
 
-async def promote(group_identifier, request, user_id, manager):
+async def promote(group_identifier, request: models.request, user_id, manager):
     if group_identifier == "0":
         return
-    promote_id = request["promote"]
+    promote_id = request.promote
     if not await verify_ID(user_id=promote_id):
         return
     if promote_id == str(user_id):
@@ -213,15 +213,14 @@ async def promote(group_identifier, request, user_id, manager):
 
 
 async def location_update(
-    group_identifier, request, user_id, manager, websocket, login
+    group_identifier, request: models.request, user_id, manager, websocket, login
 ):
     if not await ratelimit(connecting_IP=websocket.client.host):
         return
     if group_identifier == "0":
         return
 
-    location = request["location"]
-    location = models.location.parse_obj(location)
+    location = request.location
     sub_dict = dict()
     sub_dict["location_information"] = location.dict()
     sub_dict["login"] = login
@@ -248,7 +247,7 @@ async def location_update(
 
 
 async def inventory_update(
-    group_identifier, request, user_id, manager, websocket, login
+    group_identifier, request: models.request, user_id, manager, websocket, login
 ):
     """update inventory every 5 seconds per player"""
     if not await ratelimit(connecting_IP=websocket.client.host):
@@ -256,7 +255,7 @@ async def inventory_update(
     if group_identifier == "0":
         return
 
-    inventory = models.inventory.parse_obj(request)
+    inventory = request.inventory
     key, m = await get_match_from_ID(group_identifier=group_identifier)
     if not m:
         return
@@ -265,21 +264,47 @@ async def inventory_update(
     for idx, player in enumerate(players):
         if player.user_id == user_id:
             i = idx
-    m.players[i].inventory = inventory.inventory
+    m.players[i].inventory = inventory
     await redis_client.set(name=key, value=str(m.dict()))
 
     payload = {"detail": "match update", "match_data": m.dict()}
     await manager.broadcast(group_identifier=group_identifier, payload=payload)
 
 
-async def stats_update(group_identifier, request, user_id, manager, websocket, login):
-    """update inventory every 60 seconds per player"""
+async def prayer_update(
+    group_identifier, request: models.request, user_id, manager, websocket, login
+):
+    """update prayer player"""
     if not await ratelimit(connecting_IP=websocket.client.host):
         return
     if group_identifier == "0":
         return
 
-    stats = models.stats.parse_obj(request["stats"])
+    prayer = request.prayer
+    key, m = await get_match_from_ID(group_identifier=group_identifier)
+    if not m:
+        return
+    i = 0
+    players = m.players
+    for idx, player in enumerate(players):
+        if player.user_id == user_id:
+            i = idx
+    m.players[i].prayer = prayer
+    await redis_client.set(name=key, value=str(m.dict()))
+
+    payload = {"detail": "match update", "match_data": m.dict()}
+    await manager.broadcast(group_identifier=group_identifier, payload=payload)
+
+
+async def stats_update(
+    group_identifier, request: models.request, user_id, manager, websocket, login
+):
+    if not await ratelimit(connecting_IP=websocket.client.host):
+        return
+    if group_identifier == "0":
+        return
+
+    stats = request.stats
     key, m = await get_match_from_ID(group_identifier=group_identifier)
     if not m:
         return
@@ -295,7 +320,7 @@ async def stats_update(group_identifier, request, user_id, manager, websocket, l
 
 
 async def equipment_update(
-    group_identifier, request, user_id, manager, websocket, login
+    group_identifier, request: models.request, user_id, manager, websocket, login
 ):
     """update equipment every 5 seconds per player"""
     if not await ratelimit(connecting_IP=websocket.client.host):
@@ -303,7 +328,7 @@ async def equipment_update(
     if group_identifier == "0":
         return
 
-    equipment = models.equipment.parse_obj(request["equipment"])
+    equipment = request.equipment
     key, m = await get_match_from_ID(group_identifier=group_identifier)
     if not m:
         return
@@ -319,30 +344,30 @@ async def equipment_update(
     await manager.broadcast(group_identifier=group_identifier, payload=payload)
 
 
-async def ping_update(group_identifier, request, manager, login):
+async def ping_update(group_identifier, request: models.request, manager, login):
     if group_identifier == "0":
         return
-    ping_payload = request["ping_payload"]
-    ping = models.ping.parse_obj(ping_payload).dict()
+    ping = request.ping_payload.dict()
     payload = {"detail": "incoming ping", "ping_data": ping}
     await manager.broadcast(group_identifier=group_identifier, payload=payload)
 
 
-async def chat(group_identifier, request, user_id, manager, websocket, login):
+async def chat(
+    group_identifier, request: models.request, user_id, manager, websocket, login
+):
     if not await ratelimit(connecting_IP=websocket.client.host):
         return
     if group_identifier == "0":
         return
-    chat_message = request["chat_message"]
-    chat = models.chat.parse_obj(chat_message)
-    chat.message = await clean_text(chat.message)
+    chat = request.chat_message
+    precensored, chat.message = await clean_text(chat.message)
     chat.username = login
     chat.timestamp = int(time.time())
     chat_payload = {"detail": "incoming chat", "chat_data": chat.dict()}
 
     sub_payload = dict()
     sub_payload["login"] = login
-    sub_payload["message"] = chat.message
+    sub_payload["message"] = precensored
     payload = dict()
     payload["chat"] = sub_payload
     await manager.match_writer(group_identifier=group_identifier, dictionary=payload)
@@ -350,13 +375,13 @@ async def chat(group_identifier, request, user_id, manager, websocket, login):
     await manager.broadcast(group_identifier=group_identifier, payload=chat_payload)
 
 
-async def search_request(request, websocket, login, manager):
+async def search_request(request: models.request, websocket, login, manager):
     if not await ratelimit(connecting_IP=websocket.client.host):
         return
     await manager.match_writer(
         group_identifier="0", key="search_request", value=f"{login}"
     )
-    data = await search_match(search=request["search"])
+    data = await search_match(search=request.search)
     if data is None:
         await websocket.send_json(
             {
@@ -378,14 +403,16 @@ async def search_request(request, websocket, login, manager):
     await manager.disconnect(websocket=websocket, group_identifier="0")
 
 
-async def quick_match(request, websocket, login, manager):
+async def quick_match(request: models.request, websocket, login, manager):
     if not await ratelimit(connecting_IP=websocket.client.host):
         return
 
     await manager.match_writer(
         group_identifier="0", key="quick_match", value=f"{login}"
     )
-    match_list = request["match_list"]
+    match_list = request.match_list
+    if not match_list:
+        return
 
     if "RANDOM" in match_list:
         flat_keys = await redis_client.keys(f"match:*ACTIVITY=*:PRIVATE=False")
@@ -414,7 +441,9 @@ async def quick_match(request, websocket, login, manager):
     )
 
 
-async def create_match_request(request, websocket, user_data, login, manager):
+async def create_match_request(
+    request: models.request, websocket, user_data, login, manager
+):
     if not await ratelimit(connecting_IP=websocket.client.host):
         return
     await manager.match_writer(
@@ -428,7 +457,7 @@ async def create_match_request(request, websocket, user_data, login, manager):
     history_initial_match["max_players"] = initial_match.party_members
     history_initial_match["is_private"] = initial_match.isPrivate
     history_initial_match["notes"] = initial_match.notes
-    # history_initial_match["RuneGuard"] = initial_match.RuneGuard
+    history_initial_match["RuneGuard"] = initial_match.RuneGuard
     history_initial_match["match_version"] = initial_match.match_version
     history_initial_match["experience"] = initial_match.requirement.experience
     history_initial_match["split_type"] = initial_match.requirement.split_type
@@ -450,18 +479,44 @@ async def create_match_request(request, websocket, user_data, login, manager):
             "detail": "request join new match",
             "join": f"{initial_match.ID}",
             "passcode": f"{initial_match.group_passcode}",
+            "RuneGuard": f"{initial_match.RuneGuard}",
         }
     )
     await post_match_to_discord(match=initial_match)
 
 
-async def update_status(group_identifier, request, websocket, user_id, login, manager):
+async def gamestate_update(
+    group_identifier, request: models.request, user_id, manager, websocket, login
+):
+    """update gamestate per player"""
+    if not await ratelimit(connecting_IP=websocket.client.host):
+        return
+    if group_identifier == "0":
+        return
+
+    gamestate = int(request.gamestate)
+    key, m = await get_match_from_ID(group_identifier=group_identifier)
+    if not m:
+        return
+    i = 0
+    players = m.players
+    for idx, player in enumerate(players):
+        if player.user_id == user_id:
+            i = idx
+    m.players[i].gamestate = gamestate
+
+    await redis_client.set(name=key, value=str(m.dict()))
+    payload = {"detail": "match update", "match_data": m.dict()}
+    await manager.broadcast(group_identifier=group_identifier, payload=payload)
+
+
+async def update_status(
+    group_identifier, request: models.request, websocket, user_id, login, manager
+):
     if group_identifier == "0":
         return
     if not await ratelimit(connecting_IP=websocket.client.host):
         return
-
-    status_val = models.status.parse_obj(request["status"])
 
     key, m = await get_match_from_ID(group_identifier=group_identifier)
     if not m:
@@ -472,7 +527,7 @@ async def update_status(group_identifier, request, websocket, user_id, login, ma
     for idx, player in enumerate(players):
         if player.user_id == user_id:
             i = idx
-    m.players[i].status = status_val
+    m.players[i].status = request.status
     await redis_client.set(name=key, value=str(m.dict()))
 
     payload = {"detail": "match update", "match_data": m.dict()}
@@ -526,6 +581,7 @@ async def change_rating(request_id, user_id: int, is_like):
 
 
 async def search_match(search: str):
+    search = search.strip()
     if re.fullmatch("^[a-z]{2,7}-[a-z]{2,7}-[a-z]{2,7}", search):
         keys = await redis_client.keys(f"match:ID={search}*")
     else:
@@ -553,7 +609,7 @@ async def search_match(search: str):
             notes=match["notes"],
             party_members=match["party_members"],
             isPrivate=match["isPrivate"],
-            # RuneGuard=match["RuneGuard"],
+            RuneGuard=match["RuneGuard"],
             experience=requirement["experience"],
             split_type=requirement["split_type"],
             accounts=requirement["accounts"],
@@ -568,6 +624,9 @@ async def search_match(search: str):
 
 
 async def create_match(request, user_data):
+    ID = matchID()
+    match_version = configVars.MATCH_VERSION
+
     discord = user_data["discord"]
     user_id = user_data["user_id"]
     verified = user_data["verified"]
@@ -575,19 +634,16 @@ async def create_match(request, user_data):
     wdr = user_data["wdr"]
     login = user_data["login"]
 
-    sub_payload = request["create_match"]
-    activity = sub_payload["activity"]
-    party_members = sub_payload["party_members"]
-    experience = sub_payload["experience"]
-    split_type = sub_payload["split_type"]
-    accounts = sub_payload["accounts"]
-    regions = sub_payload["regions"]
-    # RuneGuard = sub_payload["RuneGuard"]
-    notes = await clean_text(sub_payload["notes"])
-    group_passcode = sub_payload["group_passcode"]
+    activity = request.create_match.activity
+    party_members = request.create_match.party_members
+    experience = request.create_match.experience
+    split_type = request.create_match.split_type
+    accounts = request.create_match.accounts
+    regions = request.create_match.regions
+    RuneGuard = request.create_match.RuneGuard
+    precensored, notes = await clean_text(request.create_match.notes)
+    group_passcode = request.create_match.group_passcode
     private = bool(group_passcode)
-    ID = matchID()
-    match_version = configVars.MATCH_VERSION
 
     rating = await get_rating(user_id=user_id)
 
@@ -598,7 +654,7 @@ async def create_match(request, user_data):
         isPrivate=private,
         notes=notes,
         group_passcode=group_passcode,
-        # RuneGuard=RuneGuard,
+        RuneGuard=RuneGuard,
         match_version=match_version,
         requirement=models.requirement(
             experience=experience,
@@ -677,7 +733,7 @@ async def post_match_to_discord(match: models.match):
 
     match_privacy = "Private" if match.isPrivate else "Public"
     activity = match.activity.replace("_", " ").title()
-    notes = await clean_text(match.notes)
+    precensored, notes = await clean_text(match.notes)
 
     webhook_payload = {
         "content": f"<@&{activityReference.pi_dict[match.activity]}> <t:{int(time.time())}:R>",
