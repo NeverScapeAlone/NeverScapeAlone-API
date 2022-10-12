@@ -1,7 +1,7 @@
 FROM python:3.10-slim
 
-WORKDIR /prod
-COPY . /prod/
+WORKDIR /code
+COPY . /code/
 
 EXPOSE 5500
 
