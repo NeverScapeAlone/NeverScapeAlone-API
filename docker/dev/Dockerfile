@@ -2,6 +2,7 @@ FROM python:3.10-slim
 
 WORKDIR /dev
 COPY . /dev/
+COPY requirements.txt /dev/requirements.txt
 
 EXPOSE 5501
 

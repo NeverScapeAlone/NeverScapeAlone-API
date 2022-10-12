@@ -2,6 +2,7 @@ FROM python:3.10-slim
 
 WORKDIR /prod
 COPY . /prod/
+COPY requirements.txt /prod/requirements.txt
 
 EXPOSE 5500
 

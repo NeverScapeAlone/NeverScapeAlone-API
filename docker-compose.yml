@@ -18,7 +18,7 @@ services:
     build:
       context: .
       dockerfile: ./docker/dev/Dockerfile
-    image: neverscapealone-api-dev:latest
+    image: neverscapealone-dev:latest
     ports:
       - "5501:5501"
     env_file:
