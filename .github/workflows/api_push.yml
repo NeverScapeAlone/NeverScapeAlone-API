@@ -49,4 +49,4 @@ jobs:
     steps:
       - name: Docker
         run: |
-          sudo docker-compose up --build -d
+          sudo docker-compose up --build -d dev

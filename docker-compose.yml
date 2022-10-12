@@ -3,8 +3,8 @@ version: '3'
 services:
   api:
     build:
-      context: ./dockerfiles/api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./docker/api/Dockerfile
     image: neverscapealone-api:latest
     ports:
       - "5500:5500"
@@ -16,8 +16,8 @@ services:
       - /home/ubuntu/nsa/errors:/prod/logs:rw
   dev:
     build:
-      context: ./dockerfiles/dev
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./docker/dev/Dockerfile
     image: neverscapealone-api-dev:latest
     ports:
       - "5501:5501"
