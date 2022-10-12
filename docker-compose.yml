@@ -4,7 +4,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: ./docker/api/Dockerfile
+      dockerfile: API_Dockerfile
     image: neverscapealone-api:latest
     ports:
       - "5500:5500"
@@ -17,7 +17,7 @@ services:
   dev:
     build:
       context: .
-      dockerfile: ./docker/dev/Dockerfile
+      dockerfile: DEV_Dockerfile
     image: neverscapealone-dev:latest
     ports:
       - "5501:5501"
