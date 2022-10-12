@@ -1,7 +1,7 @@
-name: Development Push workflow
+name: Push workflow
 on:
   push:
-    branches: [develop]
+    branches: [main]
 
 jobs:
   pytest:
@@ -49,4 +49,4 @@ jobs:
     steps:
       - name: Docker
         run: |
-          sudo docker-compose up --build -d dev
+          sudo docker-compose up --build -d api

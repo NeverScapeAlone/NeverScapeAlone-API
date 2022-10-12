@@ -1,7 +1,7 @@
-name: Pull workflow
+name: Development Pull workflow
 on:
   pull_request:
-    branches: [main]
+    branches: [develop]
 
 jobs:
   pytest:
