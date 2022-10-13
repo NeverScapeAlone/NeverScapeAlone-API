@@ -4,7 +4,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: ./dockerfiles/api/API_Dockerfile
     image: neverscapealone-api:latest
     ports:
       - "5500:5500"
@@ -14,3 +14,16 @@ services:
       - /home/ubuntu/nsa/match_histories:/code/histories:rw
       - /home/ubuntu/nsa/errors:/code/errors:rw
       - /home/ubuntu/nsa/errors:/code/logs:rw
+  dev:
+    build:
+      context: .
+      dockerfile: ./dockerfiles/dev/Dockerfile
+    image: neverscapealone-dev:latest
+    ports:
+      - "5501:5501"
+    env_file:
+      - .env
+    volumes:
+      - /home/ubuntu/nsa_dev/match_histories:/code/histories:rw
+      - /home/ubuntu/nsa_dev/errors:/code/errors:rw
+      - /home/ubuntu/nsa_dev/errors:/code/logs:rw

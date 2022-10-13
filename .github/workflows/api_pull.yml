@@ -1,0 +1,26 @@
+name: Pull workflow
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 2
+    steps:
+      - name: Test Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.X"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Pytest
+        run: |
+          pytest tests
