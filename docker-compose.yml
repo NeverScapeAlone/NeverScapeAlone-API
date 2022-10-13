@@ -4,7 +4,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: ./dockerfiles/api/API_Dockerfile
+      dockerfile: ./dockerfiles/api/Dockerfile
     image: neverscapealone-api:latest
     ports:
       - "5500:5500"
