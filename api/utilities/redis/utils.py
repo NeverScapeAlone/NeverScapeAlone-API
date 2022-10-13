@@ -28,4 +28,6 @@ async def load_redis_from_sql():
         key = f"user:{login}:{user_id}"
         del value["timestamp"]
         mapping[key] = str(value)
+    if not mapping:
+        return
     await redis_client.mset(mapping=mapping)

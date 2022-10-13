@@ -21,11 +21,6 @@ class Configuration:
             if os.environ.get("sql_uri")
             else "mysql+asyncmy://username:password@host:3306/database"
         )
-        self.GLOBAL_BROADCAST_TOKEN = (
-            os.environ.get("global_broadcast_token")
-            if os.environ.get("global_broadcast_token")
-            else "global_broadcast_token"
-        )
         self.DISCORD_TOKEN = (
             os.environ.get("discord_route_token")
             if os.environ.get("discord_route_token")
@@ -47,7 +42,7 @@ class Configuration:
             else "1000"
         )
         self.REDIS_PORT = (
-            int(os.environ.get("redis_port")) if os.environ.get("redis_port") else 1000
+            int(os.environ.get("redis_port")) if os.environ.get("redis_port") else 0
         )
         self.RATE_LIMIT_MINUTE = (
             int(os.environ.get("rate_limit_minute"))
@@ -62,8 +57,9 @@ class Configuration:
         self.MATCH_VERSION = (
             os.environ.get("match_version")
             if os.environ.get("match_version")
-            else "v0.0.0-alpha"
+            else "v0.0.0"
         )
+        self.DEVELOPER_MODE = True if os.environ.get("developer_mode") else False
         self.TIMEOUT = 30 * 60
 
     def setMATCH_VERSION(self, match_version):

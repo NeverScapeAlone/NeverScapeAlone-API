@@ -32,16 +32,17 @@ jobs:
       - uses: actions/checkout@v2
       - name: Set Up ENV
         run: |
-          echo "${{ secrets.SQL_URI }}" > .env
+          echo "${{ secrets.DEV_SQL_URI }}" > .env
           echo "${{ secrets.DISCORD_ROUTE_TOKEN}}" >> .env
           echo "${{ secrets.REDIS_PASSWORD}}" >> .env
-          echo "${{ secrets.REDIS_DATABASE}}" >> .env
+          echo "${{ secrets.DEV_REDIS_DATABASE}}" >> .env
           echo "${{ secrets.REDIS_PORT}}" >> .env
-          echo "${{ secrets.DISCORD_WEBHOOK}}" >> .env
-          echo "${{ secrets.GLOBAL_BROADCAST_TOKEN}}" >> .env
+          echo "${{ secrets.DEV_DISCORD_WEBHOOK}}" >> .env
+          echo "${{ secrets.DEV_DISCORD_ROUTE_TOKEN}}" >> .env
           echo "${{ secrets.RATE_LIMIT_MINUTE}}" >> .env
           echo "${{ secrets.RATE_LIMIT_HOUR}}" >> .env
           echo "${{ secrets.MATCH_VERSION}}" >> .env
+          echo "${{ secrets.DEVELOPER_MODE}}" >> .env
 
   deploy:
     runs-on: self-hosted

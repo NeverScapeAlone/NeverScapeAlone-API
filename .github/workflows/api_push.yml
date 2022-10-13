@@ -38,7 +38,6 @@ jobs:
           echo "${{ secrets.REDIS_DATABASE}}" >> .env
           echo "${{ secrets.REDIS_PORT}}" >> .env
           echo "${{ secrets.DISCORD_WEBHOOK}}" >> .env
-          echo "${{ secrets.GLOBAL_BROADCAST_TOKEN}}" >> .env
           echo "${{ secrets.RATE_LIMIT_MINUTE}}" >> .env
           echo "${{ secrets.RATE_LIMIT_HOUR}}" >> .env
           echo "${{ secrets.MATCH_VERSION}}" >> .env

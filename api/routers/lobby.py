@@ -67,23 +67,6 @@ async def update_version(version: str, access_token: str):
     }
 
 
-@router.get("/V2/global_broadcast")
-async def global_broadcast(message: str, authorization_token: str):
-    if authorization_token[:2] != "-:":
-        return HTTPException(
-            status_code=400,
-            detail="Incorrect append, authorization must contain '-:' starter.",
-        )
-    authorization_token = authorization_token[2:]
-    if authorization_token != configVars.GLOBAL_BROADCAST_TOKEN:
-        return HTTPException(
-            status_code=401, detail="Your authorization token is incorrect."
-        )
-    if message == configVars.GLOBAL_BROADCAST_TOKEN:
-        return HTTPException(status_code=400, detail="You didn't mean to send that...")
-    manager.global_broadcast(message=message)
-
-
 @router.websocket("/V2/lobby/{group_identifier}/{passcode}")
 async def websocket_endpoint(
     websocket: WebSocket, group_identifier: str, passcode: str
