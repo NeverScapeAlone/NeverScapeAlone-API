@@ -3,9 +3,9 @@
 # Setting up your environment
 
 __Requirements__
-* Ubuntu 22.04 or a cheap server that can be used to run the following commands:
+* Ubuntu 22.04 or a server with Ubuntu 22.04
 
-### INSTALLING Nginx
+### INSTALLING NGINX
 ```
 sudo apt update
 sudo apt install nginx
@@ -22,21 +22,25 @@ sudo ufw reload
 sudo ufw status
 ```
 
-### INSTALLING Mysql
+### INSTALLING MYSQL
 ```
 sudo apt install mysql-server
 sudo mysql
+```
+```
 > ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'password';
 > FLUSH PRIVILEGES;
 > exit
 ```
 
-### INSTALLING Php
+### INSTALLING PHP
 ```
 sudo apt install php-fpm php-mysql
 sudo nano /etc/nginx/sites-available/site
+```
 
-# INPUT THE FOLLOWING
+#### INPUT THE FOLLOWING
+```
 server {
         listen 80;
         root /var/www/html;
@@ -56,13 +60,15 @@ server {
                 deny all;
         }
 }
+```
 
+```
 sudo ln -s /etc/nginx/sites-available/site /etc/nginx/sites-enabled/
 sudo unlink /etc/nginx/sites-enabled/default
 sudo systemctl reload nginx
 ```
 
-## INSTALLING Docker
+### INSTALLING DOCKER
 ```
 sudo apt-get update
 sudo apt-get install \
@@ -86,7 +92,7 @@ sudo service docker start
 sudo docker run hello-world
 ```
 
-### INSTALLING Docker Compose
+### INSTALLING DOCKER-COMPOSE
 ```
 sudo apt install docker-compose
 ```
@@ -94,20 +100,24 @@ sudo apt install docker-compose
 ### OPENING MYSQL TO THE WORLD
 ```
 sudo nano /etc/mysql/mysql.conf.d/mysqld.cnf
-
->> CHANGE BIND ADDRESS TO THIS:
+```
+#### CHANGE BIND ADDRESS TO THIS:
+```
 bind_address = {YOUR IPV4 HERE}
-
+```
+```
 sudo service mysql restart
 systemctl status mysql.service
 sudo mysql -u root -p
-
-# ENTER YOUR PASSWORD "password" if you didn't change the default
+```
+#### ENTER YOUR PASSWORD "password" if you didn't change the default
+```
 > CREATE USER 'username'@'%' IDENTIFIED BY 'chooseyourpassword';
 > GRANT ALL PRIVILEGES ON *.* TO 'username'@'%';
 > FLUSH PRIVILEGES;
 > exit
-
+```
+```
 sudo systemctl restart nginx
 ```
 
@@ -115,9 +125,9 @@ sudo systemctl restart nginx
 ```
 sudo apt install phpmyadmin
 sudo nano /etc/nginx/snippets/phpmyadmin.conf
-
-# PLACE THIS IN THE phpmyadmin.conf FILE
-
+```
+#### PLACE THIS IN THE phpmyadmin.conf FILE
+```
 location /phpmyadmin {
     root /usr/share/;
     index index.php index.html index.htm;
@@ -134,10 +144,12 @@ location /phpmyadmin {
         root /usr/share/;
     }
 }
-
+```
+```
 sudo nano /etc/nginx/sites-available/site
-
-# REPLACE THE OLD FILE WITH THIS
+```
+#### REPLACE THE OLD FILE WITH THIS
+```
 server {
         listen 80;
         root /var/www/html;
@@ -158,13 +170,13 @@ server {
                 deny all;
         }
 }
-
-sudo service nginx restart
-
-## you can now go to http://{youripv4domain}.com/phpmyadmin and login to your mysql database
 ```
+```
+sudo service nginx restart
+```
+#### you can now go to http://{youripv4domain}.com/phpmyadmin and login to your mysql database
 
-# Entering in the NeverScapeAlone-API mysql files:
+### Entering in the NeverScapeAlone-API mysql files:
 Use the file located here to generate a series of tables that you will use for your mysql database:
 https://github.com/NeverScapeAlone/NeverScapeAlone-SQL/blob/main/full_setup.sql
 
@@ -173,14 +185,19 @@ https://github.com/NeverScapeAlone/NeverScapeAlone-SQL/blob/main/full_setup.sql
 sudo apt update
 sudo apt install redis-server
 sudo nano /etc/redis/redis.conf
-# IN THE redis.conf file, change the following lines:
+```
+#### IN THE redis.conf file, change the following lines:
+```
 > supervised no -> supervised systemd
 > bind 127.0.0.1 ::-1 -> bind 0.0.0.0
 > #requirepass -> requirepass <put a strong password here>
-
+```
+```
 sudo systemctl restart redis.service
 sudo systemctl status redis
 redis-cli
+```
+```
 > Auth <your very strong password from requirepass>
 > ping
 >> PONG
