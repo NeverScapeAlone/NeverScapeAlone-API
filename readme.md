@@ -9,24 +9,27 @@
       - [MatchData](#matchdata)
       - [PingData](#pingdata)
 - [Setting up your environment](#setting-up-your-environment)
-    - [INSTALLING NGINX](#installing-nginx)
-    - [INSTALLING MYSQL](#installing-mysql)
-    - [INSTALLING PHP](#installing-php)
-      - [INPUT THE FOLLOWING](#input-the-following)
-    - [INSTALLING DOCKER](#installing-docker)
-    - [INSTALLING DOCKER-COMPOSE](#installing-docker-compose)
-    - [OPENING MYSQL TO THE WORLD](#opening-mysql-to-the-world)
-      - [CHANGE BIND ADDRESS TO THIS:](#change-bind-address-to-this)
-      - [ENTER YOUR PASSWORD "password" if you didn't change the default](#enter-your-password-password-if-you-didnt-change-the-default)
-    - [INSTALLING PHPMYADMIN](#installing-phpmyadmin)
-      - [PLACE THIS IN THE phpmyadmin.conf FILE](#place-this-in-the-phpmyadminconf-file)
-      - [REPLACE THE OLD FILE WITH THIS](#replace-the-old-file-with-this)
+  - [Setup Environment Automatically](#setup-environment-automatically)
+    - [You can use this script to setup **most** of your environment:](#you-can-use-this-script-to-setup-most-of-your-environment)
+  - [Setup Environment Manually](#setup-environment-manually)
+    - [Installing nginx](#installing-nginx)
+    - [Installing Mysql](#installing-mysql)
+    - [Installing php](#installing-php)
+      - [Add this to the /etc/nginx/sites-available/site file](#add-this-to-the-etcnginxsites-availablesite-file)
+    - [Installing Docker](#installing-docker)
+    - [Installing Docker-Compose](#installing-docker-compose)
+    - [Opening Mysql to the world](#opening-mysql-to-the-world)
+      - [Change bind address](#change-bind-address)
+      - [Enter your password, "password" if you didn't change the default](#enter-your-password-password-if-you-didnt-change-the-default)
+    - [Installing phpmyadmin](#installing-phpmyadmin)
+      - [Add this to /etc/nginx/snippets/phpmyadmin.conf](#add-this-to-etcnginxsnippetsphpmyadminconf)
+      - [Replace /etc/nginx/sites-available/site with this](#replace-etcnginxsites-availablesite-with-this)
       - [you can now go to http://{youripv4domain}.com/phpmyadmin and login to your mysql database](#you-can-now-go-to-httpyouripv4domaincomphpmyadmin-and-login-to-your-mysql-database)
     - [Entering in the NeverScapeAlone-API mysql files:](#entering-in-the-neverscapealone-api-mysql-files)
-    - [INSTALLING REDIS](#installing-redis)
-      - [IN THE redis.conf file, change the following lines:](#in-the-redisconf-file-change-the-following-lines)
-    - [GITHUB RUNNER](#github-runner)
-    - [GITHUB REPOSITORY](#github-repository)
+    - [Installing redis](#installing-redis)
+      - [In the redis.conf file, change the following lines:](#in-the-redisconf-file-change-the-following-lines)
+    - [Github Repository](#github-repository)
+    - [Add a github runner for your fork](#add-a-github-runner-for-your-fork)
 
 # Socket I/O Logic
 
@@ -1311,7 +1314,26 @@ public enum ServerStatusCode {
 __Requirements__
 * Ubuntu 22.04 or a server with Ubuntu 22.04
 
-### INSTALLING NGINX
+## Setup Environment Automatically
+
+### You can use this script to setup **most** of your environment:
+* Nginx
+* Mysql & Open it to the world on port 3306
+* Php
+* Docker
+* Docker-Compose
+* Phpmyadmin & Open it to the world on http://$ip/phpmyadmin
+* Redis & Open it to the world on port 6379
+```
+mkdir setup && cd setup
+wget -4 https://raw.githubusercontent.com/NeverScapeAlone/NeverScapeAlone-API/add-conv-script/setup.sh
+sudo chmod +x setup.sh
+./setup.sh
+```
+
+## Setup Environment Manually
+
+### Installing nginx
 ```
 sudo apt update
 sudo apt install nginx
@@ -1328,7 +1350,7 @@ sudo ufw reload
 sudo ufw status
 ```
 
-### INSTALLING MYSQL
+### Installing Mysql
 ```
 sudo apt install mysql-server
 sudo mysql
@@ -1339,13 +1361,13 @@ sudo mysql
 > exit
 ```
 
-### INSTALLING PHP
+### Installing php
 ```
 sudo apt install php-fpm php-mysql
 sudo nano /etc/nginx/sites-available/site
 ```
 
-#### INPUT THE FOLLOWING
+#### Add this to the /etc/nginx/sites-available/site file
 ```
 server {
         listen 80;
@@ -1374,7 +1396,7 @@ sudo unlink /etc/nginx/sites-enabled/default
 sudo systemctl reload nginx
 ```
 
-### INSTALLING DOCKER
+### Installing Docker
 ```
 sudo apt-get update
 sudo apt-get install \
@@ -1398,16 +1420,16 @@ sudo service docker start
 sudo docker run hello-world
 ```
 
-### INSTALLING DOCKER-COMPOSE
+### Installing Docker-Compose
 ```
 sudo apt install docker-compose
 ```
 
-### OPENING MYSQL TO THE WORLD
+### Opening Mysql to the world
 ```
 sudo nano /etc/mysql/mysql.conf.d/mysqld.cnf
 ```
-#### CHANGE BIND ADDRESS TO THIS:
+#### Change bind address
 ```
 bind_address = {YOUR IPV4 HERE}
 ```
@@ -1416,7 +1438,7 @@ sudo service mysql restart
 systemctl status mysql.service
 sudo mysql -u root -p
 ```
-#### ENTER YOUR PASSWORD "password" if you didn't change the default
+#### Enter your password, "password" if you didn't change the default
 ```
 > CREATE USER 'username'@'%' IDENTIFIED BY 'chooseyourpassword';
 > GRANT ALL PRIVILEGES ON *.* TO 'username'@'%';
@@ -1427,12 +1449,12 @@ sudo mysql -u root -p
 sudo systemctl restart nginx
 ```
 
-### INSTALLING PHPMYADMIN
+### Installing phpmyadmin
 ```
 sudo apt install phpmyadmin
 sudo nano /etc/nginx/snippets/phpmyadmin.conf
 ```
-#### PLACE THIS IN THE phpmyadmin.conf FILE
+#### Add this to /etc/nginx/snippets/phpmyadmin.conf
 ```
 location /phpmyadmin {
     root /usr/share/;
@@ -1454,7 +1476,7 @@ location /phpmyadmin {
 ```
 sudo nano /etc/nginx/sites-available/site
 ```
-#### REPLACE THE OLD FILE WITH THIS
+#### Replace /etc/nginx/sites-available/site with this
 ```
 server {
         listen 80;
@@ -1486,13 +1508,13 @@ sudo service nginx restart
 Use the file located here to generate a series of tables that you will use for your mysql database:
 https://github.com/NeverScapeAlone/NeverScapeAlone-SQL/blob/main/full_setup.sql
 
-### INSTALLING REDIS
+### Installing redis
 ```
 sudo apt update
 sudo apt install redis-server
 sudo nano /etc/redis/redis.conf
 ```
-#### IN THE redis.conf file, change the following lines:
+#### In the redis.conf file, change the following lines:
 ```
 > supervised no -> supervised systemd
 > bind 127.0.0.1 ::-1 -> bind 0.0.0.0
@@ -1510,17 +1532,7 @@ redis-cli
 > exit
 ```
 
-### GITHUB RUNNER
-1. On your fork of the repository go to:
-2. Settings > Actions > Runners > new self-hosted runner
-3. Follow the commands listed
-4. Set up your runner as a service here: https://docs.github.com/en/actions/hosting-your-own-runners/configuring-the-self-hosted-runner-application-as-a-service
-```
-sudo ./svc.sh install
-sudo ./svc.sh start
-```
-
-### GITHUB REPOSITORY
+### Github Repository
 1. Install VsCode
 2. Install Github Desktop
 3. Fork this repository.
@@ -1550,3 +1562,14 @@ pip install -r requirements.txt
 7. Prior to running this on your site, make sure to correctly configure the your ports, and to set GITHUB SECRETS! Check the .github/workflows file for the github secrets you'll need, and the branches that will be activated. 
 
 Feel free to leave a question in the issues page of this discord if you need help setting up your environment. 
+
+
+### Add a github runner for your fork
+1. On your fork of the repository go to:
+2. Settings > Actions > Runners > new self-hosted runner
+3. Follow the commands listed
+4. Set up your runner as a service here: https://docs.github.com/en/actions/hosting-your-own-runners/configuring-the-self-hosted-runner-application-as-a-service
+```
+sudo ./svc.sh install
+sudo ./svc.sh start
+```
