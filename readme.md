@@ -1326,7 +1326,7 @@ __Requirements__
 * Redis & Open it to the world on port 6379
 ```
 mkdir setup && cd setup
-wget -4 https://raw.githubusercontent.com/NeverScapeAlone/NeverScapeAlone-API/add-conv-script/setup.sh
+wget -4 https://raw.githubusercontent.com/NeverScapeAlone/NeverScapeAlone-API/develop/setup.sh
 sudo chmod +x setup.sh
 ./setup.sh
 ```
